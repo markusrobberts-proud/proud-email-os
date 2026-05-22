@@ -1,12 +1,27 @@
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { Plus } from "lucide-react"
+import { Plus, Sparkles } from "lucide-react"
 import { requireApprovedUser } from "@/lib/auth"
 import { getBrandBySlug } from "@/lib/brands"
-import { listPlansForBrand, MONTHS } from "@/lib/campaigns"
+import { listPlansForBrand } from "@/lib/campaigns"
+import { MONTHS } from "@/lib/months"
 import { canEditStrategy } from "@/lib/rbac"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { PageHeader, PageShell } from "@/components/layout/page-header"
+
+const STATUS_BADGE: Record<string, { variant: "neutral" | "success" | "warning" | "destructive"; label: string }> = {
+  draft: { variant: "neutral", label: "Draft" },
+  generating: { variant: "warning", label: "Generating..." },
+  pending_review: { variant: "warning", label: "Pending review" },
+  calendar_approved: { variant: "success", label: "Calendar approved" },
+  copy_generating: { variant: "warning", label: "Copy generating..." },
+  copy_done: { variant: "success", label: "Copy done" },
+  briefs_done: { variant: "success", label: "Briefs done" },
+  complete: { variant: "success", label: "Complete" },
+  error: { variant: "destructive", label: "Error" },
+}
 
 export default async function BrandCalendarPage({ params }: { params: Promise<{ slug: string }> }) {
   const user = await requireApprovedUser()
@@ -16,68 +31,87 @@ export default async function BrandCalendarPage({ params }: { params: Promise<{ 
   const plans = await listPlansForBrand(brand.id)
   const canPlan = canEditStrategy(user.role)
 
+  const byYear = plans.reduce<Record<number, typeof plans>>((acc, p) => {
+    acc[p.year] ??= []
+    acc[p.year].push(p)
+    return acc
+  }, {})
+
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <div className="text-xs uppercase tracking-widest text-muted-foreground">{brand.name}</div>
-          <h1 className="text-2xl font-semibold tracking-tight">Campaign Calendar</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            One plan per month. Each plan moves through draft → review → calendar approved → copy done → briefs done → complete.
-          </p>
-        </div>
-        {canPlan && (
-          <Link
-            href={`/brands/${brand.slug}/calendar/new`}
-            className="inline-flex items-center gap-2 rounded-md bg-primary text-primary-foreground px-3 py-2 text-sm font-medium hover:bg-primary/90"
-          >
-            <Plus className="size-4" /> Plan next month
-          </Link>
-        )}
-      </div>
+    <PageShell>
+      <PageHeader
+        eyebrow={brand.name}
+        title="Campaign Calendar"
+        description="One plan per month. Draft, review, approve, then move into copy and brief generation."
+        actions={
+          canPlan && (
+            <Button asChild>
+              <Link href={`/brands/${brand.slug}/calendar/new`}>
+                <Plus /> Plan next month
+              </Link>
+            </Button>
+          )
+        }
+      />
 
       {plans.length === 0 ? (
-        <Card className="glass">
+        <Card variant="glass-tinted-blue">
           <CardHeader>
-            <CardTitle className="text-base">No plans yet</CardTitle>
-            <CardDescription>
-              {canPlan ? "Create the first monthly plan." : "An admin or strategist needs to create one."}
-            </CardDescription>
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#007AFF] flex items-center justify-center shrink-0">
+                <Sparkles className="size-5 text-white" />
+              </div>
+              <div>
+                <CardTitle>Plan your first month</CardTitle>
+                <CardDescription>
+                  Give Claude cadence targets and a short brief. It'll propose a calendar grounded in Proud Strategy + this brand's knowledge bank.
+                </CardDescription>
+              </div>
+            </div>
           </CardHeader>
+          {canPlan && (
+            <CardContent>
+              <Button asChild>
+                <Link href={`/brands/${brand.slug}/calendar/new`}>
+                  <Plus /> Plan next month
+                </Link>
+              </Button>
+            </CardContent>
+          )}
         </Card>
       ) : (
-        <div className="space-y-3">
-          {plans.map((p) => (
-            <Link key={p.id} href={`/brands/${brand.slug}/calendar/${p.id}`} className="block">
-              <Card className="glass hover:bg-white/90 transition-colors">
-                <CardContent className="py-4 flex items-center justify-between gap-4">
-                  <div>
-                    <div className="text-sm font-medium">{MONTHS[p.month - 1]} {p.year}</div>
-                    <div className="text-xs text-muted-foreground mt-1">{p.name}</div>
-                  </div>
-                  <PlanStatusBadge status={p.status} />
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
+        <div className="space-y-10">
+          {Object.entries(byYear)
+            .sort(([a], [b]) => Number(b) - Number(a))
+            .map(([year, list]) => (
+              <div key={year}>
+                <div className="text-[11px] font-semibold text-[#86868B] uppercase tracking-wider mb-3">{year}</div>
+                <Card>
+                  <CardContent className="p-0">
+                    {list.map((p, idx) => {
+                      const badge = STATUS_BADGE[p.status] ?? { variant: "neutral" as const, label: p.status }
+                      return (
+                        <Link
+                          key={p.id}
+                          href={`/brands/${brand.slug}/calendar/${p.id}`}
+                          className={`flex items-center justify-between gap-4 px-5 py-4 hover:bg-white/60 transition ${
+                            idx === list.length - 1 ? "" : "border-b border-[#E5E5EA]"
+                          }`}
+                        >
+                          <div className="min-w-0">
+                            <div className="text-[14px] font-medium">{MONTHS[p.month - 1]}</div>
+                            <div className="text-[12px] text-[#86868B] mt-0.5 truncate">{p.name}</div>
+                          </div>
+                          <Badge variant={badge.variant}>{badge.label}</Badge>
+                        </Link>
+                      )
+                    })}
+                  </CardContent>
+                </Card>
+              </div>
+            ))}
         </div>
       )}
-    </div>
+    </PageShell>
   )
-}
-
-function PlanStatusBadge({ status }: { status: string }) {
-  const map: Record<string, { variant: "secondary" | "warning" | "success" | "destructive"; label: string }> = {
-    draft: { variant: "secondary", label: "Draft" },
-    generating: { variant: "warning", label: "Generating…" },
-    pending_review: { variant: "warning", label: "Pending review" },
-    calendar_approved: { variant: "success", label: "Calendar approved" },
-    copy_generating: { variant: "warning", label: "Copy generating…" },
-    copy_done: { variant: "success", label: "Copy done" },
-    briefs_done: { variant: "success", label: "Briefs done" },
-    complete: { variant: "success", label: "Complete" },
-    error: { variant: "destructive", label: "Error" },
-  }
-  const m = map[status] ?? { variant: "secondary" as const, label: status }
-  return <Badge variant={m.variant}>{m.label}</Badge>
 }

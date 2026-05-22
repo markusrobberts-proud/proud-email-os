@@ -1,6 +1,9 @@
 import { requireRole } from "@/lib/rbac"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Avatar, initialsFromName } from "@/components/ui/avatar"
+import { PageHeader, PageShell } from "@/components/layout/page-header"
 import { InviteUserForm } from "./invite-form"
 import { RoleSelect } from "./role-select"
 
@@ -12,6 +15,14 @@ type UserRow = {
   created_at: string
 }
 
+const ROLE_COLOURS: Record<string, string> = {
+  admin: "#1D1D1F",
+  strategist: "#2D4F6B",
+  designer: "#8B5A2B",
+  viewer: "#6E6E73",
+  pending: "#B45309",
+}
+
 export default async function TeamPage() {
   const admin = await requireRole("admin")
   const supabase = await createSupabaseServerClient()
@@ -20,21 +31,26 @@ export default async function TeamPage() {
     .select("id,email,display_name,role,created_at")
     .order("created_at", { ascending: true })
   const users = (data ?? []) as UserRow[]
+  const pendingCount = users.filter((u) => u.role === "pending").length
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Team</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Invite teammates and assign roles. New signups land as `pending`. Promote them here.
-        </p>
-      </div>
+    <PageShell>
+      <PageHeader
+        eyebrow="Admin"
+        title="Team"
+        description="Invite teammates, change roles, deactivate accounts."
+        actions={
+          pendingCount > 0 ? (
+            <Badge variant="warning">{pendingCount} pending</Badge>
+          ) : undefined
+        }
+      />
 
-      <Card>
+      <Card className="mb-6">
         <CardHeader>
-          <CardTitle className="text-base">Invite a teammate</CardTitle>
+          <CardTitle>Invite a teammate</CardTitle>
           <CardDescription>
-            They'll get a magic-link sign-in. If no service role key is set in env, you'll see a link to share manually.
+            They get a magic-link sign-in. With no service-role key set, the form will surface a link you can share manually.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -42,27 +58,35 @@ export default async function TeamPage() {
         </CardContent>
       </Card>
 
+      <div className="text-[11px] font-semibold text-[#86868B] uppercase tracking-wider mb-3">Members</div>
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Team members</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            {users.map((u) => (
-              <div key={u.id} className="flex items-center justify-between gap-3 py-2 border-b last:border-0 border-border/60">
+        <CardContent className="p-0">
+          {users.map((u, idx) => (
+            <div
+              key={u.id}
+              className={`flex items-center justify-between gap-3 px-5 py-3.5 ${
+                idx === users.length - 1 ? "" : "border-b border-[#E5E5EA]"
+              }`}
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <Avatar
+                  initials={initialsFromName(u.display_name ?? u.email)}
+                  color={ROLE_COLOURS[u.role]}
+                  size="md"
+                />
                 <div className="min-w-0">
-                  <div className="text-sm font-medium truncate">
+                  <div className="text-[13px] font-medium truncate">
                     {u.display_name || u.email.split("@")[0]}
-                    {u.id === admin.id && <span className="text-xs text-muted-foreground ml-2">(you)</span>}
+                    {u.id === admin.id && <span className="text-[11px] text-[#86868B] ml-2">(you)</span>}
                   </div>
-                  <div className="text-xs text-muted-foreground truncate">{u.email}</div>
+                  <div className="text-[12px] text-[#86868B] truncate">{u.email}</div>
                 </div>
-                <RoleSelect userId={u.id} currentRole={u.role} isSelf={u.id === admin.id} />
               </div>
-            ))}
-          </div>
+              <RoleSelect userId={u.id} currentRole={u.role} isSelf={u.id === admin.id} />
+            </div>
+          ))}
         </CardContent>
       </Card>
-    </div>
+    </PageShell>
   )
 }

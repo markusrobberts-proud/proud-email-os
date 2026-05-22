@@ -1,13 +1,20 @@
 "use client"
 
 import { useState, useTransition } from "react"
+import { ChevronDown, Mail, MessageSquare, Pencil, Sparkles, ExternalLink } from "lucide-react"
 import type { CampaignEmail } from "@/lib/campaigns"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { cn } from "@/lib/utils"
 import { generateCopyForEmail, generateBriefForEmail } from "../actions"
 import { exportEmailToAsana } from "../asana-actions"
+import { saveEmailCopy, saveEmailBrief } from "../edit-actions"
+
+type Mode = "view" | "edit-copy" | "edit-brief"
 
 export function EmailRow({
   email,
@@ -19,12 +26,13 @@ export function EmailRow({
   copyUnlocked: boolean
 }) {
   const [expanded, setExpanded] = useState(false)
+  const [mode, setMode] = useState<Mode>("view")
   const [feedback, setFeedback] = useState("")
   const [pending, startTransition] = useTransition()
 
   const copyDone = email.copy_status === "done"
-  const briefUnlocked = copyDone
   const briefDone = email.brief_status === "done"
+  const briefUnlocked = copyDone
 
   function act(fn: () => Promise<void>) {
     startTransition(async () => {
@@ -39,111 +47,188 @@ export function EmailRow({
 
   return (
     <Card>
-      <CardContent className="py-4 space-y-3">
+      <CardContent className="p-0">
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="w-full text-left flex items-center justify-between gap-4"
+          className={cn(
+            "w-full flex items-center gap-4 px-5 py-4 text-left transition hover:bg-white/60",
+            expanded && "bg-white/40",
+          )}
         >
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span>#{email.sequence_number}</span>
-              <span>·</span>
-              <span>{email.scheduled_date ?? "TBD"}</span>
-              <span>·</span>
-              <FormatPill format={email.format} />
-              <span>·</span>
-              <span className="truncate">{email.target_segment ?? "–"}</span>
-            </div>
-            <div className="text-sm font-medium mt-1 truncate">
-              {email.subject_line ?? email.theme ?? "(no subject yet)"}
-            </div>
-            {email.body_headline && (
-              <div className="text-xs text-muted-foreground mt-0.5 truncate">{email.body_headline}</div>
+          <div className="w-9 h-9 rounded-lg bg-[#F5F5F7] flex items-center justify-center shrink-0">
+            {email.format === "sms" ? (
+              <MessageSquare className="size-4 text-[#6E6E73]" />
+            ) : (
+              <Mail className="size-4 text-[#6E6E73]" />
             )}
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <StagePill label="Copy" status={email.copy_status} />
-            <StagePill label="Brief" status={email.brief_status} />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-medium text-[14px] truncate">
+                {email.subject_line ?? email.theme ?? "(no subject yet)"}
+              </span>
+              <FormatPill format={email.format} />
+              <StagePill label="Plan" status="done" />
+              <StagePill label="Copy" status={email.copy_status} />
+              <StagePill label="Brief" status={email.brief_status} />
+            </div>
+            <div className="text-[12px] text-[#86868B] mt-0.5 truncate">
+              {email.scheduled_date
+                ? new Date(email.scheduled_date).toLocaleDateString("en-AU", {
+                    weekday: "short",
+                    day: "numeric",
+                    month: "short",
+                  })
+                : "TBD"}
+              {email.target_segment && ` · ${email.target_segment}`}
+              {email.theme && email.subject_line && ` · ${email.theme}`}
+            </div>
           </div>
+          <ChevronDown className={cn("size-4 text-[#C7C7CC] shrink-0 transition", expanded && "rotate-180")} />
         </button>
 
         {expanded && (
-          <div className="pt-3 border-t border-border/60 space-y-4 text-sm">
-            <Field label="Theme" value={email.theme} />
-            <Field label="Strategic rationale" value={email.strategic_rationale} />
+          <div className="px-5 pb-5 pt-1 space-y-4 text-[13px] border-t border-[#E5E5EA] fade-in">
+            {email.strategic_rationale && <Section label="Why this email">{email.strategic_rationale}</Section>}
 
-            {copyDone ? (
-              <div className="space-y-2">
-                <Field label="Subject" value={email.subject_line} />
-                <Field label="Preview" value={email.preview_text} />
-                <Field label="Headline" value={email.body_headline} />
-                <Field label="Body" value={email.body_copy} multiline />
-                <Field label="CTA" value={`${email.cta_text ?? ""}${email.cta_url ? ` · ${email.cta_url}` : ""}`} />
-                {email.sms_body && <Field label="SMS body" value={email.sms_body} />}
+            {/* COPY SECTION */}
+            <div className="pt-2">
+              <div className="flex items-center justify-between mb-2">
+                <SectionTitle>Copy</SectionTitle>
+                {canEdit && copyDone && mode !== "edit-copy" && (
+                  <Button variant="ghost" size="sm" onClick={() => setMode("edit-copy")}>
+                    <Pencil /> Edit
+                  </Button>
+                )}
               </div>
-            ) : (
-              <p className="text-muted-foreground text-xs italic">Copy not generated yet.</p>
-            )}
 
-            {briefDone && (
-              <div className="space-y-2 pt-2 border-t border-border/60">
-                {email.format === "text" ? (
-                  <>
-                    <Field label="Sender identity" value={email.sender_identity} />
-                    <Field label="Brief" value={email.design_brief} multiline />
-                  </>
-                ) : email.format === "designed" ? (
-                  <>
-                    <Field label="Layout" value={email.layout_template} />
-                    <Field label="Imagery" value={email.imagery_notes} multiline />
-                    <Field label="Colours" value={email.colour_notes} />
-                    <Field label="Brief" value={email.design_brief} multiline />
-                  </>
-                ) : (
-                  <Field label="Brief" value={email.design_brief} />
+              {!copyDone && mode !== "edit-copy" && (
+                <p className="text-[#86868B] text-[12px] italic">Not generated yet.</p>
+              )}
+
+              {copyDone && mode !== "edit-copy" && (
+                <div className="space-y-2">
+                  <Field label="Subject" value={email.subject_line} />
+                  <Field label="Preview" value={email.preview_text} />
+                  <Field label="Headline" value={email.body_headline} />
+                  <Field label="Body" value={email.body_copy} multiline />
+                  <Field
+                    label="CTA"
+                    value={`${email.cta_text ?? ""}${email.cta_url ? ` · ${email.cta_url}` : ""}`}
+                  />
+                  {email.sms_body && <Field label="SMS body" value={email.sms_body} />}
+                </div>
+              )}
+
+              {mode === "edit-copy" && (
+                <CopyEditor
+                  email={email}
+                  pending={pending}
+                  onCancel={() => setMode("view")}
+                  onSave={(fd) =>
+                    act(async () => {
+                      await saveEmailCopy(fd)
+                      setMode("view")
+                    })
+                  }
+                />
+              )}
+            </div>
+
+            {/* BRIEF SECTION */}
+            {(briefDone || email.format !== "sms") && (
+              <div className="pt-2 border-t border-[#E5E5EA]">
+                <div className="flex items-center justify-between mb-2">
+                  <SectionTitle>Brief</SectionTitle>
+                  {canEdit && briefDone && mode !== "edit-brief" && (
+                    <Button variant="ghost" size="sm" onClick={() => setMode("edit-brief")}>
+                      <Pencil /> Edit
+                    </Button>
+                  )}
+                </div>
+
+                {!briefDone && mode !== "edit-brief" && (
+                  <p className="text-[#86868B] text-[12px] italic">Not generated yet.</p>
+                )}
+
+                {briefDone && mode !== "edit-brief" && (
+                  <div className="space-y-2">
+                    {email.format === "text" ? (
+                      <>
+                        <Field label="Sender identity" value={email.sender_identity} />
+                        <Field label="Brief" value={email.design_brief} multiline />
+                      </>
+                    ) : email.format === "designed" ? (
+                      <>
+                        <Field label="Layout" value={email.layout_template} />
+                        <Field label="Imagery" value={email.imagery_notes} multiline />
+                        <Field label="Colours" value={email.colour_notes} />
+                        <Field label="Brief" value={email.design_brief} multiline />
+                      </>
+                    ) : (
+                      <Field label="Brief" value={email.design_brief} />
+                    )}
+                  </div>
+                )}
+
+                {mode === "edit-brief" && (
+                  <BriefEditor
+                    email={email}
+                    pending={pending}
+                    onCancel={() => setMode("view")}
+                    onSave={(fd) =>
+                      act(async () => {
+                        await saveEmailBrief(fd)
+                        setMode("view")
+                      })
+                    }
+                  />
                 )}
               </div>
             )}
 
-            {canEdit && (
-              <div className="pt-3 border-t border-border/60 space-y-2">
+            {/* ASANA LINK */}
+            {email.asana_task_url && (
+              <a
+                href={email.asana_task_url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 text-[12px] text-[#007AFF] hover:underline"
+              >
+                <ExternalLink className="size-3" /> View Asana task
+              </a>
+            )}
+
+            {/* ACTIONS */}
+            {canEdit && mode === "view" && (
+              <div className="pt-3 border-t border-[#E5E5EA] space-y-2">
                 <div className="flex items-center gap-2 flex-wrap">
                   <Button
                     size="sm"
-                    variant={copyDone ? "outline" : "default"}
+                    variant={copyDone ? "secondary" : "accent"}
                     disabled={!copyUnlocked || pending}
                     onClick={() => act(() => generateCopyForEmail(email.id, feedback || undefined))}
                   >
-                    {copyDone ? "Regenerate copy" : "Generate copy"}
+                    <Sparkles /> {copyDone ? "Regenerate copy" : "Generate copy"}
                   </Button>
                   <Button
                     size="sm"
-                    variant={briefDone ? "outline" : "default"}
+                    variant={briefDone ? "secondary" : "accent"}
                     disabled={!briefUnlocked || pending}
                     onClick={() => act(() => generateBriefForEmail(email.id))}
                   >
-                    {briefDone ? "Regenerate brief" : "Generate brief"}
+                    <Sparkles /> {briefDone ? "Regenerate brief" : "Generate brief"}
                   </Button>
                   {briefDone && (
                     <Button
                       size="sm"
-                      variant="outline"
+                      variant="secondary"
                       disabled={pending}
                       onClick={() => act(() => exportEmailToAsana(email.id))}
                     >
                       {email.asana_task_url ? "Re-export to Asana" : "Export to Asana"}
                     </Button>
-                  )}
-                  {email.asana_task_url && (
-                    <a
-                      href={email.asana_task_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-xs text-muted-foreground hover:text-foreground underline"
-                    >
-                      View Asana task →
-                    </a>
                   )}
                 </div>
                 {copyDone && (
@@ -155,7 +240,7 @@ export function EmailRow({
                   />
                 )}
                 {!copyUnlocked && (
-                  <p className="text-xs text-muted-foreground italic">
+                  <p className="text-[11.5px] text-[#86868B] italic">
                     Approve the calendar above to unlock copy generation.
                   </p>
                 )}
@@ -168,14 +253,124 @@ export function EmailRow({
   )
 }
 
+function CopyEditor({
+  email,
+  pending,
+  onSave,
+  onCancel,
+}: {
+  email: CampaignEmail
+  pending: boolean
+  onSave: (fd: FormData) => void
+  onCancel: () => void
+}) {
+  return (
+    <form
+      action={(fd) => {
+        fd.set("emailId", email.id)
+        onSave(fd)
+      }}
+      className="space-y-3"
+    >
+      <EditField label="Subject" name="subject_line" defaultValue={email.subject_line ?? ""} />
+      <EditField label="Preview" name="preview_text" defaultValue={email.preview_text ?? ""} />
+      <EditField label="Headline" name="body_headline" defaultValue={email.body_headline ?? ""} />
+      <EditField label="Body" name="body_copy" defaultValue={email.body_copy ?? ""} multiline rows={10} />
+      <div className="grid grid-cols-2 gap-3">
+        <EditField label="CTA text" name="cta_text" defaultValue={email.cta_text ?? ""} />
+        <EditField label="CTA URL" name="cta_url" defaultValue={email.cta_url ?? ""} />
+      </div>
+      {email.format === "sms" && (
+        <EditField label="SMS body" name="sms_body" defaultValue={email.sms_body ?? ""} multiline rows={3} />
+      )}
+      <div className="flex items-center gap-2 pt-2">
+        <Button type="submit" size="sm" disabled={pending}>{pending ? "Saving..." : "Save"}</Button>
+        <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={pending}>Cancel</Button>
+      </div>
+    </form>
+  )
+}
+
+function BriefEditor({
+  email,
+  pending,
+  onSave,
+  onCancel,
+}: {
+  email: CampaignEmail
+  pending: boolean
+  onSave: (fd: FormData) => void
+  onCancel: () => void
+}) {
+  return (
+    <form
+      action={(fd) => {
+        fd.set("emailId", email.id)
+        onSave(fd)
+      }}
+      className="space-y-3"
+    >
+      {email.format === "designed" && (
+        <>
+          <EditField label="Layout" name="layout_template" defaultValue={email.layout_template ?? ""} />
+          <EditField label="Imagery" name="imagery_notes" defaultValue={email.imagery_notes ?? ""} multiline rows={4} />
+          <EditField label="Colours" name="colour_notes" defaultValue={email.colour_notes ?? ""} />
+        </>
+      )}
+      {email.format === "text" && (
+        <EditField label="Sender identity" name="sender_identity" defaultValue={email.sender_identity ?? ""} />
+      )}
+      <EditField label="Brief" name="design_brief" defaultValue={email.design_brief ?? ""} multiline rows={8} />
+      <div className="flex items-center gap-2 pt-2">
+        <Button type="submit" size="sm" disabled={pending}>{pending ? "Saving..." : "Save"}</Button>
+        <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={pending}>Cancel</Button>
+      </div>
+    </form>
+  )
+}
+
+function EditField({
+  label,
+  name,
+  defaultValue,
+  multiline,
+  rows = 3,
+}: {
+  label: string
+  name: string
+  defaultValue: string
+  multiline?: boolean
+  rows?: number
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={name} className="text-[11px] uppercase tracking-wider text-[#86868B]">{label}</Label>
+      {multiline ? (
+        <Textarea id={name} name={name} defaultValue={defaultValue} rows={rows} />
+      ) : (
+        <Input id={name} name={name} defaultValue={defaultValue} />
+      )}
+    </div>
+  )
+}
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return <div className="text-[11px] font-semibold text-[#86868B] uppercase tracking-wider">{children}</div>
+}
+
+function Section({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <SectionTitle>{label}</SectionTitle>
+      <p className="text-[13.5px] whitespace-pre-wrap leading-relaxed mt-1.5">{children}</p>
+    </div>
+  )
+}
+
 function FormatPill({ format }: { format: "text" | "designed" | "sms" }) {
-  const cls =
-    format === "text"
-      ? "bg-amber-100 text-amber-900"
-      : format === "sms"
-        ? "bg-blue-100 text-blue-900"
-        : "bg-neutral-200 text-neutral-900"
-  return <span className={`px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wide ${cls}`}>{format}</span>
+  if (format === "sms") return <Badge variant="info">SMS</Badge>
+  if (format === "text") return <Badge variant="neutral">Text</Badge>
+  return <Badge variant="accent">Designed</Badge>
 }
 
 function StagePill({ label, status }: { label: string; status: string }) {
@@ -186,10 +381,10 @@ function StagePill({ label, status }: { label: string; status: string }) {
         ? "warning"
         : status === "error"
           ? "destructive"
-          : "secondary"
+          : "neutral"
   return (
-    <Badge variant={variant as "success" | "warning" | "destructive" | "secondary"} className="text-[10px]">
-      {label}: {status}
+    <Badge variant={variant as "success" | "warning" | "destructive" | "neutral"}>
+      {label}
     </Badge>
   )
 }
@@ -197,9 +392,9 @@ function StagePill({ label, status }: { label: string; status: string }) {
 function Field({ label, value, multiline }: { label: string; value: string | null | undefined; multiline?: boolean }) {
   return (
     <div>
-      <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">{label}</div>
-      <p className={`text-sm ${multiline ? "whitespace-pre-wrap" : ""}`}>
-        {value || <span className="italic text-muted-foreground">–</span>}
+      <div className="text-[11px] uppercase tracking-widest text-[#86868B]">{label}</div>
+      <p className={cn("text-[13.5px] mt-0.5 leading-relaxed", multiline && "whitespace-pre-wrap")}>
+        {value || <span className="italic text-[#86868B]">–</span>}
       </p>
     </div>
   )

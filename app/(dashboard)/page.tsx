@@ -1,13 +1,28 @@
 import Link from "next/link"
-import { Plus, ArrowRight, BookOpen } from "lucide-react"
-import { requireApprovedUser } from "@/lib/auth"
-import { listAccessibleBrands } from "@/lib/brands"
-import { canEditStrategy } from "@/lib/rbac"
-import { createSupabaseServerClient } from "@/lib/supabase/server"
+import {
+  Sparkles,
+  Plus,
+  Users,
+  ListChecks,
+  Compass,
+  BookOpen,
+  Calendar,
+  MessageCircle,
+  Mail,
+  MessageSquare,
+  ArrowRight,
+  Inbox,
+  Pencil,
+} from "lucide-react"
+import { requireApprovedUser, type AppUser } from "@/lib/auth"
+import { listAccessibleBrands, type Brand } from "@/lib/brands"
+import { loadDashboardData, relativeTime, describeAuditAction, type DashboardData } from "@/lib/dashboard"
+import { canEditStrategy, canManageUsers } from "@/lib/rbac"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { PageHeader, PageShell } from "@/components/layout/page-header"
+import { PageShell } from "@/components/layout/page-header"
+import { createSupabaseServerClient } from "@/lib/supabase/server"
 
 function timeOfDay() {
   const h = new Date().getHours()
@@ -16,140 +31,672 @@ function timeOfDay() {
   return "Good evening"
 }
 
-export default async function BrandsPage() {
+export default async function HomePage() {
   const user = await requireApprovedUser()
-  const brands = await listAccessibleBrands()
-  const canPlan = canEditStrategy(user.role)
+  const [brands, data] = await Promise.all([listAccessibleBrands(), loadDashboardData()])
+  const brandMap = new Map(brands.map((b) => [b.id, b]))
 
-  // Doc + plan counts per brand for richer cards.
-  const supabase = await createSupabaseServerClient()
-  const brandIds = brands.map((b) => b.id)
-  const counts: Record<string, { docs: number; plans: number }> = {}
-  if (brandIds.length > 0) {
-    const [{ data: docs }, { data: plans }] = await Promise.all([
-      supabase
-        .from("knowledge_items")
-        .select("brand_id")
-        .in("brand_id", brandIds)
-        .eq("review_status", "approved"),
-      supabase.from("campaign_plans").select("brand_id").in("brand_id", brandIds),
-    ])
-    for (const d of docs ?? []) {
-      counts[d.brand_id as string] ??= { docs: 0, plans: 0 }
-      counts[d.brand_id as string].docs++
-    }
-    for (const p of plans ?? []) {
-      counts[p.brand_id as string] ??= { docs: 0, plans: 0 }
-      counts[p.brand_id as string].plans++
-    }
+  // Resolve user display names referenced in the recent audit feed.
+  const userIds = Array.from(new Set(data.recentAudit.map((a) => a.user_id).filter(Boolean))) as string[]
+  let userMap = new Map<string, { display_name: string | null; email: string }>()
+  if (userIds.length > 0) {
+    const supabase = await createSupabaseServerClient()
+    const { data: users } = await supabase.from("users").select("id,display_name,email").in("id", userIds)
+    userMap = new Map(
+      (users ?? []).map((u: { id: string; display_name: string | null; email: string }) => [
+        u.id,
+        { display_name: u.display_name, email: u.email },
+      ]),
+    )
   }
+
+  const aiKeyConfigured = !!(process.env.AI_GATEWAY_API_KEY || process.env.ANTHROPIC_API_KEY)
+  const greeting = `${timeOfDay()}, ${user.displayName?.split(" ")[0] ?? user.email.split("@")[0]}`
 
   return (
     <PageShell>
-      <PageHeader
-        eyebrow={`${timeOfDay()}, ${user.displayName?.split(" ")[0] ?? user.email.split("@")[0]}`}
-        title="Brands"
-        description="Every brand Proud Creative runs email for. Pick one to drop into the workspace."
-        actions={
-          canPlan && (
-            <Button asChild>
-              <Link href="/brands/new">
-                <Plus /> Add brand
-              </Link>
-            </Button>
-          )
-        }
-      />
+      <div className="mb-8">
+        <div className="text-[11px] uppercase tracking-wider text-[#86868B] mb-1">{greeting}</div>
+        <h1 className="text-[34px] font-semibold tracking-display leading-tight">
+          {roleTitle(user.role)}
+        </h1>
+        <p className="text-[15px] text-[#6E6E73] mt-2 max-w-xl leading-relaxed">{roleSubtitle(user.role)}</p>
+      </div>
 
-      {brands.length === 0 ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>No brands yet</CardTitle>
-            <CardDescription>
-              {canPlan
-                ? "Add your first brand to get started: Walnut, Genuins, Proud Coffee Co."
-                : "An admin or strategist needs to add a brand before you can do anything here."}
-            </CardDescription>
-          </CardHeader>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {brands.map((brand) => {
-            const c = counts[brand.id] ?? { docs: 0, plans: 0 }
-            return (
-              <Link key={brand.id} href={`/brands/${brand.slug}`} className="block">
-                <Card hoverable className="h-full">
-                  <CardHeader>
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <CardTitle>{brand.name}</CardTitle>
-                        <CardDescription>{brand.industry ?? "–"}</CardDescription>
-                      </div>
-                      <BrandSquare color={brand.primary_color} name={brand.name} />
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center justify-between text-[12px] text-[#86868B]">
-                      <div className="flex items-center gap-3">
-                        <span className="inline-flex items-center gap-1">
-                          <BookOpen className="size-3.5" /> {c.docs} docs
-                        </span>
-                        <span>·</span>
-                        <span>{c.plans} {c.plans === 1 ? "plan" : "plans"}</span>
-                      </div>
-                      <Badge
-                        variant={brand.scrape_status === "done" ? "success" : brand.scrape_status === "error" ? "destructive" : "neutral"}
-                      >
-                        {brand.scrape_status === "done" ? "Indexed" : brand.scrape_status}
-                      </Badge>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            )
-          })}
-
-          {canPlan && (
-            <Link href="/brands/new" className="block">
-              <Card className="h-full border-dashed bg-white/30 hover:bg-white/60 transition card-shadow-hover">
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-md border border-dashed border-[#D2D2D7] flex items-center justify-center">
-                      <Plus className="size-4 text-[#86868B]" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-[#6E6E73]">Add brand</CardTitle>
-                      <CardDescription>New workspace, ready in seconds</CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center justify-end text-[12px] text-[#86868B]">
-                    Start <ArrowRight className="size-3 ml-1" />
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          )}
-        </div>
-      )}
+      {roleDashboard({ user, data, brands, brandMap, userMap, aiKeyConfigured })}
     </PageShell>
   )
 }
 
-function BrandSquare({ color, name }: { color: string | null; name: string }) {
-  const initials = name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase()
+function roleTitle(role: AppUser["role"]): string {
+  switch (role) {
+    case "admin":
+      return "Command centre"
+    case "strategist":
+      return "Your strategy pipeline"
+    case "designer":
+      return "Your design queue"
+    case "viewer":
+      return "What's shipping"
+    default:
+      return "Welcome"
+  }
+}
+
+function roleSubtitle(role: AppUser["role"]): string {
+  switch (role) {
+    case "admin":
+      return "Activity, pending reviews, team and system status across every brand."
+    case "strategist":
+      return "Plans you're driving, knowledge items to review, and recent client feedback."
+    case "designer":
+      return "Briefs ready for design, recent Asana exports, and what's coming next."
+    case "viewer":
+      return "Recent campaign progress and client approvals across your brands."
+    default:
+      return ""
+  }
+}
+
+function roleDashboard({
+  user,
+  data,
+  brands,
+  brandMap,
+  userMap,
+  aiKeyConfigured,
+}: {
+  user: AppUser
+  data: DashboardData
+  brands: Brand[]
+  brandMap: Map<string, Brand>
+  userMap: Map<string, { display_name: string | null; email: string }>
+  aiKeyConfigured: boolean
+}) {
+  if (user.role === "admin") {
+    return <AdminDashboard user={user} data={data} brands={brands} brandMap={brandMap} userMap={userMap} aiKeyConfigured={aiKeyConfigured} />
+  }
+  if (user.role === "strategist") {
+    return <StrategistDashboard data={data} brandMap={brandMap} aiKeyConfigured={aiKeyConfigured} />
+  }
+  if (user.role === "designer") {
+    return <DesignerDashboard data={data} brandMap={brandMap} />
+  }
+  return <ViewerDashboard data={data} brands={brands} brandMap={brandMap} />
+}
+
+/* -------------------- ADMIN -------------------- */
+
+function AdminDashboard({
+  data,
+  brands,
+  brandMap,
+  userMap,
+  aiKeyConfigured,
+}: {
+  user: AppUser
+  data: DashboardData
+  brands: Brand[]
+  brandMap: Map<string, Brand>
+  userMap: Map<string, { display_name: string | null; email: string }>
+  aiKeyConfigured: boolean
+}) {
   return (
-    <div
-      className="w-9 h-9 rounded-lg flex items-center justify-center text-[11px] font-semibold text-white shrink-0"
-      style={{ background: color || "#1D1D1F" }}
-    >
-      {initials}
+    <>
+      <div className="grid grid-cols-4 gap-3 mb-10">
+        <Stat label="Brands" value={brands.length} />
+        <Stat label="Plans in flight" value={data.counts.activePlans} />
+        <Stat label="Pending review" value={data.counts.pendingKnowledge} tone={data.counts.pendingKnowledge > 0 ? "#8B5A00" : undefined} />
+        <Stat label="Team" value={data.counts.teamSize} sub={data.counts.pendingTeam > 0 ? `${data.counts.pendingTeam} pending` : undefined} />
+      </div>
+
+      <div className="grid grid-cols-3 gap-6">
+        <div className="col-span-2 space-y-6">
+          <Section title="Activity" right={<Link href="/settings/audit" className="text-[12px] text-[#007AFF] hover:underline">Full log →</Link>}>
+            {data.recentAudit.length === 0 ? (
+              <EmptyCard message="No activity yet. Create a brand or generate a calendar." />
+            ) : (
+              <Card>
+                <CardContent className="p-0">
+                  {data.recentAudit.map((entry, idx) => {
+                    const actor = entry.user_id ? userMap.get(entry.user_id) : null
+                    const brand = entry.brand_id ? brandMap.get(entry.brand_id) : null
+                    return (
+                      <div
+                        key={entry.id}
+                        className={`px-5 py-3 text-[13px] flex items-start justify-between gap-4 ${
+                          idx === data.recentAudit.length - 1 ? "" : "border-b border-[#E5E5EA]"
+                        }`}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium">{actor?.display_name || actor?.email || "system"}</span>
+                            <span className="text-[#6E6E73]">{describeAuditAction(entry)}</span>
+                            {brand && (
+                              <Link href={`/brands/${brand.slug}`} className="text-[#1D1D1F] hover:underline">{brand.name}</Link>
+                            )}
+                          </div>
+                        </div>
+                        <span className="text-[11px] text-[#86868B] shrink-0">{relativeTime(entry.created_at)}</span>
+                      </div>
+                    )
+                  })}
+                </CardContent>
+              </Card>
+            )}
+          </Section>
+
+          <Section title="Plans needing attention" right={<Link href="/brands" className="text-[12px] text-[#007AFF] hover:underline">All brands →</Link>}>
+            <PlansList plans={data.activePlans.slice(0, 5)} brandMap={brandMap} />
+          </Section>
+
+          {data.recentClientFeedback.length > 0 && (
+            <Section title="Recent client feedback">
+              <ClientFeedbackList items={data.recentClientFeedback.slice(0, 5)} brandMap={brandMap} />
+            </Section>
+          )}
+        </div>
+
+        <div className="space-y-6">
+          <Section title="System">
+            <Card>
+              <CardContent className="p-0">
+                <SystemRow label="AI key" ok={aiKeyConfigured} okText="Connected" badText="Not set" />
+                <SystemRow label="Email inbound" ok={!!process.env.RESEND_API_KEY} okText="Resend ready" badText="Phase 2B" />
+                <SystemRow label="Asana export" ok={!!process.env.ASANA_PERSONAL_ACCESS_TOKEN} okText="Configured" badText="Not set" last />
+              </CardContent>
+            </Card>
+          </Section>
+
+          <Section title="Quick actions">
+            <div className="space-y-2">
+              <QuickAction href="/brands/new" icon={<Plus className="size-4 text-white" />} iconBg="#1D1D1F" title="Add brand" description="Spin up a new workspace" />
+              <QuickAction href="/settings/team" icon={<Users className="size-4 text-[#6E6E73]" />} title="Manage team" description={`${data.counts.teamSize} members · ${data.counts.pendingTeam} pending`} />
+              <QuickAction href="/knowledge?status=pending_review" icon={<ListChecks className="size-4 text-[#6E6E73]" />} title="Review queue" description={`${data.counts.pendingKnowledge} items pending`} highlight={data.counts.pendingKnowledge > 0} />
+              <QuickAction href="/strategy" icon={<Compass className="size-4 text-[#6E6E73]" />} title="Proud Strategy" description={data.strategyUpdatedAt ? `Updated ${relativeTime(data.strategyUpdatedAt)}` : "Empty"} />
+            </div>
+          </Section>
+        </div>
+      </div>
+    </>
+  )
+}
+
+/* -------------------- STRATEGIST -------------------- */
+
+function StrategistDashboard({
+  data,
+  brandMap,
+  aiKeyConfigured,
+}: {
+  data: DashboardData
+  brandMap: Map<string, Brand>
+  aiKeyConfigured: boolean
+}) {
+  return (
+    <>
+      <div className="grid grid-cols-4 gap-3 mb-10">
+        <Stat label="Plans in flight" value={data.counts.activePlans} />
+        <Stat label="Pending review" value={data.counts.pendingKnowledge} tone={data.counts.pendingKnowledge > 0 ? "#8B5A00" : undefined} />
+        <Stat label="Completed this month" value={data.counts.completeThisMonth} tone="#166D2F" />
+        <Stat label="Recent client notes" value={data.recentClientFeedback.length} />
+      </div>
+
+      <div className="grid grid-cols-3 gap-6">
+        <div className="col-span-2 space-y-6">
+          <Section title="Plans to drive" right={<Link href="/brands" className="text-[12px] text-[#007AFF] hover:underline">All brands →</Link>}>
+            <PlansList plans={data.activePlans.slice(0, 6)} brandMap={brandMap} />
+          </Section>
+
+          {data.recentClientFeedback.length > 0 && (
+            <Section title="What clients are saying">
+              <ClientFeedbackList items={data.recentClientFeedback.slice(0, 5)} brandMap={brandMap} />
+            </Section>
+          )}
+        </div>
+
+        <div className="space-y-6">
+          <Section title="Review queue" right={<Link href="/knowledge?status=pending_review" className="text-[12px] text-[#007AFF] hover:underline">All →</Link>}>
+            {data.pendingKnowledge.length === 0 ? (
+              <Card>
+                <CardContent className="py-5 text-[13px] text-[#6E6E73]">
+                  Clean slate. No items waiting for approval.
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardContent className="p-0">
+                  {data.pendingKnowledge.slice(0, 5).map((k, idx) => {
+                    const brand = brandMap.get(k.brand_id)
+                    return (
+                      <Link
+                        key={k.id}
+                        href={brand ? `/brands/${brand.slug}/knowledge?status=pending_review` : "/knowledge?status=pending_review"}
+                        className={`block px-4 py-3 text-[13px] hover:bg-white/60 transition ${
+                          idx === Math.min(data.pendingKnowledge.length, 5) - 1 ? "" : "border-b border-[#E5E5EA]"
+                        }`}
+                      >
+                        <div className="font-medium truncate">{k.title}</div>
+                        <div className="text-[11.5px] text-[#86868B] mt-0.5">
+                          {brand?.name ?? "Unknown brand"} · {k.source_type.replace(/_/g, " ")}
+                        </div>
+                      </Link>
+                    )
+                  })}
+                </CardContent>
+              </Card>
+            )}
+          </Section>
+
+          <Section title="Quick actions">
+            <div className="space-y-2">
+              <QuickAction
+                href="/brands"
+                icon={<Sparkles className="size-4 text-white" />}
+                iconBg="#007AFF"
+                title="Plan next month"
+                description="Pick a brand, draft a calendar"
+                highlight
+              />
+              <QuickAction
+                href="/strategy"
+                icon={<Compass className="size-4 text-[#6E6E73]" />}
+                title="Proud Strategy"
+                description={data.strategyUpdatedAt ? `Updated ${relativeTime(data.strategyUpdatedAt)}` : "Empty"}
+              />
+              <QuickAction
+                href="/knowledge"
+                icon={<BookOpen className="size-4 text-[#6E6E73]" />}
+                title="Knowledge Bank"
+                description="Browse everything Claude reads"
+              />
+            </div>
+          </Section>
+
+          {!aiKeyConfigured && (
+            <Card variant="glass-tinted-blue">
+              <CardHeader>
+                <CardTitle>AI key not set</CardTitle>
+                <CardDescription>Add ANTHROPIC_API_KEY to unlock generation.</CardDescription>
+              </CardHeader>
+            </Card>
+          )}
+        </div>
+      </div>
+    </>
+  )
+}
+
+/* -------------------- DESIGNER -------------------- */
+
+function DesignerDashboard({
+  data,
+  brandMap,
+}: {
+  data: DashboardData
+  brandMap: Map<string, Brand>
+}) {
+  return (
+    <>
+      <div className="grid grid-cols-4 gap-3 mb-10">
+        <Stat label="Briefs ready for design" value={data.counts.designQueue} tone={data.counts.designQueue > 0 ? "#8B5A00" : undefined} />
+        <Stat label="Active plans" value={data.counts.activePlans} />
+        <Stat label="Completed this month" value={data.counts.completeThisMonth} tone="#166D2F" />
+        <Stat label="Brands" value={brandMap.size} />
+      </div>
+
+      <div className="grid grid-cols-3 gap-6">
+        <div className="col-span-2 space-y-6">
+          <Section title="Briefs ready for design" right={<Link href="/brands" className="text-[12px] text-[#007AFF] hover:underline">Browse calendars →</Link>}>
+            {data.designQueue.length === 0 ? (
+              <EmptyCard message="No briefs waiting on design. You're clear." />
+            ) : (
+              <Card>
+                <CardContent className="p-0">
+                  {data.designQueue.slice(0, 8).map((e, idx) => {
+                    const brand = brandMap.get(e.brand_id)
+                    return (
+                      <Link
+                        key={e.id}
+                        href={brand ? `/brands/${brand.slug}/calendar/${e.plan_id}` : "/brands"}
+                        className={`flex items-center gap-3 px-5 py-3.5 hover:bg-white/60 transition ${
+                          idx === Math.min(data.designQueue.length, 8) - 1 ? "" : "border-b border-[#E5E5EA]"
+                        }`}
+                      >
+                        <div className="w-9 h-9 rounded-lg bg-[#F5F5F7] flex items-center justify-center shrink-0">
+                          {e.format === "sms" ? (
+                            <MessageSquare className="size-4 text-[#6E6E73]" />
+                          ) : (
+                            <Mail className="size-4 text-[#6E6E73]" />
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[14px] font-medium truncate">
+                            {e.subject_line ?? e.theme ?? "(no subject)"}
+                          </div>
+                          <div className="text-[11.5px] text-[#86868B] mt-0.5 flex items-center gap-2 flex-wrap">
+                            {brand && <span>{brand.name}</span>}
+                            <span>·</span>
+                            <FormatBadge format={e.format} />
+                            {e.scheduled_date && (
+                              <>
+                                <span>·</span>
+                                <span>
+                                  {new Date(e.scheduled_date).toLocaleDateString("en-AU", {
+                                    weekday: "short",
+                                    day: "numeric",
+                                    month: "short",
+                                  })}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        <ArrowRight className="size-4 text-[#C7C7CC]" />
+                      </Link>
+                    )
+                  })}
+                </CardContent>
+              </Card>
+            )}
+          </Section>
+        </div>
+
+        <div className="space-y-6">
+          <Section title="Quick actions">
+            <div className="space-y-2">
+              <QuickAction
+                href="/brands"
+                icon={<Calendar className="size-4 text-white" />}
+                iconBg="#1D1D1F"
+                title="Browse calendars"
+                description="See all upcoming work"
+                highlight
+              />
+              <QuickAction
+                href="/knowledge"
+                icon={<BookOpen className="size-4 text-[#6E6E73]" />}
+                title="Brand references"
+                description="Tone, visual direction, archives"
+              />
+            </div>
+          </Section>
+        </div>
+      </div>
+    </>
+  )
+}
+
+/* -------------------- VIEWER -------------------- */
+
+function ViewerDashboard({
+  data,
+  brands,
+  brandMap,
+}: {
+  data: DashboardData
+  brands: Brand[]
+  brandMap: Map<string, Brand>
+}) {
+  return (
+    <>
+      <div className="grid grid-cols-4 gap-3 mb-10">
+        <Stat label="Brands" value={brands.length} />
+        <Stat label="Active plans" value={data.counts.activePlans} />
+        <Stat label="Completed this month" value={data.counts.completeThisMonth} tone="#166D2F" />
+        <Stat label="Client actions" value={data.recentClientFeedback.length} />
+      </div>
+
+      <div className="grid grid-cols-3 gap-6">
+        <div className="col-span-2 space-y-6">
+          <Section title="What's in flight" right={<Link href="/brands" className="text-[12px] text-[#007AFF] hover:underline">Brands →</Link>}>
+            <PlansList plans={data.activePlans.slice(0, 5)} brandMap={brandMap} />
+          </Section>
+
+          {data.recentClientFeedback.length > 0 && (
+            <Section title="Recent client actions">
+              <ClientFeedbackList items={data.recentClientFeedback.slice(0, 5)} brandMap={brandMap} />
+            </Section>
+          )}
+        </div>
+
+        <div className="space-y-6">
+          <Section title="Browse">
+            <div className="space-y-2">
+              {brands.slice(0, 4).map((b) => (
+                <Link key={b.id} href={`/brands/${b.slug}`} className="block">
+                  <Card hoverable>
+                    <CardContent className="p-4 flex items-center gap-3">
+                      <div
+                        className="w-8 h-8 rounded-md flex items-center justify-center text-[10px] font-semibold text-white shrink-0"
+                        style={{ background: b.primary_color || "#1D1D1F" }}
+                      >
+                        {b.name
+                          .split(/\s+/)
+                          .slice(0, 2)
+                          .map((w) => w[0])
+                          .join("")
+                          .toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-[13px] font-medium truncate">{b.name}</div>
+                        <div className="text-[11.5px] text-[#86868B] truncate">{b.industry ?? "–"}</div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          </Section>
+        </div>
+      </div>
+    </>
+  )
+}
+
+/* -------------------- SHARED -------------------- */
+
+function Stat({ label, value, tone, sub }: { label: string; value: number; tone?: string; sub?: string }) {
+  return (
+    <Card>
+      <CardContent className="p-5">
+        <div className="text-[12px] text-[#86868B] mb-1">{label}</div>
+        <div className="text-[28px] font-semibold tracking-display" style={{ color: tone || "#1D1D1F" }}>
+          {value}
+        </div>
+        {sub && <div className="text-[11px] text-[#86868B] mt-0.5">{sub}</div>}
+      </CardContent>
+    </Card>
+  )
+}
+
+function Section({
+  title,
+  right,
+  children,
+}: {
+  title: string
+  right?: React.ReactNode
+  children: React.ReactNode
+}) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-[16px] font-semibold tracking-display">{title}</h2>
+        {right}
+      </div>
+      {children}
     </div>
   )
+}
+
+function EmptyCard({ message }: { message: string }) {
+  return (
+    <Card>
+      <CardContent className="py-6 text-[13px] text-[#6E6E73] text-center">{message}</CardContent>
+    </Card>
+  )
+}
+
+function PlansList({ plans, brandMap }: { plans: ReturnType<typeof Object>; brandMap: Map<string, Brand> }) {
+  const list = plans as DashboardData["activePlans"]
+  if (list.length === 0) {
+    return <EmptyCard message="Nothing in flight right now." />
+  }
+  return (
+    <Card>
+      <CardContent className="p-0">
+        {list.map((p, idx) => {
+          const brand = brandMap.get(p.brand_id)
+          return (
+            <Link
+              key={p.id}
+              href={brand ? `/brands/${brand.slug}/calendar/${p.id}` : "/brands"}
+              className={`flex items-center justify-between gap-4 px-5 py-3.5 hover:bg-white/60 transition ${
+                idx === list.length - 1 ? "" : "border-b border-[#E5E5EA]"
+              }`}
+            >
+              <div className="min-w-0">
+                <div className="text-[13px] font-medium truncate">
+                  {brand?.name ?? "Unknown brand"} · {monthName(p.month)} {p.year}
+                </div>
+                <div className="text-[11.5px] text-[#86868B] mt-0.5 truncate">
+                  {planStatusLabel(p.status)} · started {relativeTime(p.created_at)}
+                </div>
+              </div>
+              <PlanStatusBadge status={p.status} />
+            </Link>
+          )
+        })}
+      </CardContent>
+    </Card>
+  )
+}
+
+function ClientFeedbackList({
+  items,
+  brandMap,
+}: {
+  items: DashboardData["recentClientFeedback"]
+  brandMap: Map<string, Brand>
+}) {
+  return (
+    <Card>
+      <CardContent className="p-0">
+        {items.map((f, idx) => {
+          const brand = f.brand_id ? brandMap.get(f.brand_id) ?? null : null
+          const Icon = f.action === "approve" ? ListChecks : f.action === "request_changes" ? Pencil : MessageCircle
+          return (
+            <div
+              key={`${f.acted_at}-${idx}`}
+              className={`flex items-start gap-3 px-5 py-3.5 ${
+                idx === items.length - 1 ? "" : "border-b border-[#E5E5EA]"
+              }`}
+            >
+              <div className="w-8 h-8 rounded-lg bg-[#F5F5F7] flex items-center justify-center shrink-0">
+                <Icon className="size-3.5 text-[#6E6E73]" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-[13px]">
+                  <span className="font-medium">{f.brand_name ?? brand?.name ?? "Client"}</span>{" "}
+                  <span className="text-[#6E6E73]">{actionPhrase(f.action)}</span>
+                </div>
+                {f.comment && (
+                  <div className="text-[12px] text-[#1D1D1F] mt-1 leading-relaxed line-clamp-3">"{f.comment}"</div>
+                )}
+              </div>
+              <span className="text-[11px] text-[#86868B] shrink-0">{relativeTime(f.acted_at)}</span>
+            </div>
+          )
+        })}
+      </CardContent>
+    </Card>
+  )
+}
+
+function QuickAction({
+  href,
+  icon,
+  iconBg = "#F5F5F7",
+  title,
+  description,
+  highlight,
+}: {
+  href: string
+  icon: React.ReactNode
+  iconBg?: string
+  title: string
+  description: string
+  highlight?: boolean
+}) {
+  return (
+    <Link href={href} className="block">
+      <Card hoverable variant={highlight ? "glass-tinted-blue" : "glass"}>
+        <CardContent className="p-4 flex items-start gap-3">
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: iconBg }}>
+            {icon}
+          </div>
+          <div className="min-w-0">
+            <div className="font-medium text-[13px]">{title}</div>
+            <div className="text-[12px] text-[#6E6E73] mt-0.5 leading-snug">{description}</div>
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
+  )
+}
+
+function SystemRow({
+  label,
+  ok,
+  okText,
+  badText,
+  last,
+}: {
+  label: string
+  ok: boolean
+  okText: string
+  badText: string
+  last?: boolean
+}) {
+  return (
+    <div className={`flex items-center justify-between px-5 py-3 text-[13px] ${last ? "" : "border-b border-[#E5E5EA]"}`}>
+      <span className="text-[#86868B]">{label}</span>
+      <Badge variant={ok ? "success" : "warning"}>{ok ? okText : badText}</Badge>
+    </div>
+  )
+}
+
+function FormatBadge({ format }: { format: "text" | "designed" | "sms" }) {
+  if (format === "sms") return <Badge variant="info">SMS</Badge>
+  if (format === "text") return <Badge variant="neutral">Text</Badge>
+  return <Badge variant="accent">Designed</Badge>
+}
+
+function PlanStatusBadge({ status }: { status: string }) {
+  const map: Record<string, { variant: "neutral" | "warning" | "success" | "destructive"; label: string }> = {
+    draft: { variant: "neutral", label: "Draft" },
+    pending_review: { variant: "warning", label: "Review" },
+    calendar_approved: { variant: "success", label: "Approved" },
+    copy_done: { variant: "success", label: "Copy done" },
+    briefs_done: { variant: "success", label: "Briefs done" },
+    complete: { variant: "success", label: "Complete" },
+    error: { variant: "destructive", label: "Error" },
+  }
+  const m = map[status] ?? { variant: "neutral" as const, label: status }
+  return <Badge variant={m.variant}>{m.label}</Badge>
+}
+
+function planStatusLabel(s: string): string {
+  return s.replace(/_/g, " ")
+}
+
+function actionPhrase(action: string): string {
+  if (action === "approve") return "approved a campaign"
+  if (action === "request_changes") return "requested changes"
+  return "left a comment"
+}
+
+function monthName(m: number): string {
+  return ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][m - 1] ?? ""
 }

@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation"
 import {
   Calendar,
   Home,
+  LayoutDashboard,
   BookOpen,
   Compass,
   Mail,
@@ -47,10 +48,10 @@ export function Sidebar({
   const activeBrand = brands.find((b) => b.slug === activeBrandSlug) ?? null
 
   const orgNav = [
-    { href: "/", label: "Brands", icon: Home, exact: true },
+    { href: "/", label: "Home", icon: LayoutDashboard, exact: true },
+    { href: "/brands", label: "Brands", icon: Home },
     { href: "/strategy", label: "Proud Strategy", icon: Compass },
     { href: "/knowledge", label: "Knowledge Bank", icon: BookOpen },
-    { href: "/calendar", label: "Calendar", icon: Calendar },
   ]
 
   const brandNav = activeBrand

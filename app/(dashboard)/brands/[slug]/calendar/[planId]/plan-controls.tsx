@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { useRouter } from "next/navigation"
 import { Sparkles, Check, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -33,7 +32,6 @@ type PlanControlsProps = {
 }
 
 export function PlanControls({ plan, brandSlug, canEdit, canDelete }: PlanControlsProps) {
-  const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState("")
@@ -145,13 +143,21 @@ export function PlanControls({ plan, brandSlug, canEdit, canDelete }: PlanContro
                       fd.set("planId", plan.id)
                       fd.set("brandSlug", brandSlug)
                       fd.set("confirm", deleteConfirm)
-                      const res = await deletePlan(fd)
-                      if (res.ok) {
-                        setDeleteOpen(false)
-                        router.push(`/brands/${brandSlug}/calendar`)
-                        router.refresh()
-                      } else {
-                        setDeleteError(res.error)
+                      // Server-side redirect when delete succeeds, so we
+                      // never refresh the current (deleted) URL ourselves.
+                      fd.set("redirectTo", `/brands/${brandSlug}/calendar`)
+                      try {
+                        const res = await deletePlan(fd)
+                        // We only get here when the action returned a
+                        // failure result (success path redirects).
+                        if (!res.ok) setDeleteError(res.error)
+                      } catch (err) {
+                        // Re-throw NEXT_REDIRECT so Next handles navigation;
+                        // anything else we surface in the modal.
+                        if ((err as { digest?: string })?.digest?.startsWith("NEXT_REDIRECT")) {
+                          throw err
+                        }
+                        setDeleteError((err as Error).message || "Delete failed")
                       }
                     })
                   }

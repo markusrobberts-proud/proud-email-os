@@ -425,6 +425,10 @@ const DeletePlanSchema = z.object({
   planId: z.string().uuid(),
   brandSlug: z.string().min(1),
   confirm: z.string().optional(),
+  // Optional. When set, the action issues a server-side redirect to this
+  // path on success so callers that are currently *on* the plan-detail
+  // page don't try to refresh the deleted URL (which would 404).
+  redirectTo: z.string().optional(),
 })
 
 export type DeletePlanResult = { ok: true } | { ok: false; error: string }
@@ -467,5 +471,12 @@ export async function deletePlan(formData: FormData): Promise<DeletePlanResult> 
 
   revalidatePath(`/brands/${parsed.data.brandSlug}/calendar`)
   revalidatePath(`/brands/${parsed.data.brandSlug}`)
+  revalidatePath("/")
+
+  // Server-side redirect when requested so the caller (plan-detail page)
+  // never gets a chance to refresh its own now-404 URL.
+  if (parsed.data.redirectTo && parsed.data.redirectTo.startsWith("/")) {
+    redirect(parsed.data.redirectTo)
+  }
   return { ok: true }
 }

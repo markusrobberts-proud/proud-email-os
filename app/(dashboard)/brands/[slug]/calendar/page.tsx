@@ -1,11 +1,11 @@
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { Plus, Sparkles } from "lucide-react"
+import { Plus, Sparkles, FileText, Clock } from "lucide-react"
 import { requireApprovedUser } from "@/lib/auth"
 import { getBrandBySlug } from "@/lib/brands"
 import { listPlansForBrand } from "@/lib/campaigns"
 import { MONTHS } from "@/lib/months"
-import { canEditStrategy } from "@/lib/rbac"
+import { canEditStrategy, canEditBrief } from "@/lib/rbac"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -23,6 +23,12 @@ const STATUS_BADGE: Record<string, { variant: "neutral" | "success" | "warning" 
   error: { variant: "destructive", label: "Error" },
 }
 
+/**
+ * Designer view of the row badge: we don't want them squinting at "copy_done"
+ * vs "calendar_approved", they just want to know "is the brief ready?".
+ */
+const BRIEF_READY_STATUSES = new Set(["briefs_done", "complete"])
+
 export default async function BrandCalendarPage({ params }: { params: Promise<{ slug: string }> }) {
   const user = await requireApprovedUser()
   const { slug } = await params
@@ -30,6 +36,10 @@ export default async function BrandCalendarPage({ params }: { params: Promise<{ 
   if (!brand) notFound()
   const plans = await listPlansForBrand(brand.id)
   const canPlan = canEditStrategy(user.role)
+  // Designers (and viewers) don't run generations: surface "See brief" /
+  // "Brief pending" rows instead of strategist status chips.
+  const designerView = !canPlan && canEditBrief(user.role)
+  const viewerOnly = !canPlan && !designerView
 
   const byYear = plans.reduce<Record<number, typeof plans>>((acc, p) => {
     acc[p.year] ??= []
@@ -59,12 +69,22 @@ export default async function BrandCalendarPage({ params }: { params: Promise<{ 
           <CardHeader>
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-xl bg-[#007AFF] flex items-center justify-center shrink-0">
-                <Sparkles className="size-5 text-white" />
+                {canPlan ? <Sparkles className="size-5 text-white" /> : <Clock className="size-5 text-white" />}
               </div>
               <div>
-                <CardTitle>Plan your first month</CardTitle>
+                <CardTitle>
+                  {canPlan
+                    ? "Plan your first month"
+                    : designerView
+                      ? "No briefs yet"
+                      : "No campaigns yet"}
+                </CardTitle>
                 <CardDescription>
-                  Give Claude cadence targets and a short brief. It'll propose a calendar grounded in Proud Strategy + this brand's knowledge bank.
+                  {canPlan
+                    ? "Give Claude cadence targets and a short brief. It'll propose a calendar grounded in Proud Strategy + this brand's knowledge bank."
+                    : designerView
+                      ? "Briefs will appear here once a strategist plans the next campaign. Nothing to do right now."
+                      : "Campaigns will appear here once a strategist plans the next month."}
                 </CardDescription>
               </div>
             </div>
@@ -90,19 +110,54 @@ export default async function BrandCalendarPage({ params }: { params: Promise<{ 
                   <CardContent className="p-0">
                     {list.map((p, idx) => {
                       const badge = STATUS_BADGE[p.status] ?? { variant: "neutral" as const, label: p.status }
-                      return (
-                        <Link
-                          key={p.id}
-                          href={`/brands/${brand.slug}/calendar/${p.id}`}
-                          className={`flex items-center justify-between gap-4 px-5 py-4 hover:bg-white/60 transition ${
-                            idx === list.length - 1 ? "" : "border-b border-[#E5E5EA]"
-                          }`}
-                        >
+                      const briefReady = BRIEF_READY_STATUSES.has(p.status)
+                      // Designers and viewers click through to the plan only
+                      // when the brief is actually ready; otherwise we show a
+                      // dim "Brief pending" row so they know it's coming
+                      // without dead-ending on a half-built plan.
+                      const blockClick = (designerView || viewerOnly) && !briefReady
+                      const rowClasses = `flex items-center justify-between gap-4 px-5 py-4 transition ${
+                        idx === list.length - 1 ? "" : "border-b border-[#E5E5EA]"
+                      } ${blockClick ? "opacity-60 cursor-not-allowed" : "hover:bg-white/60"}`
+
+                      const right = canPlan ? (
+                        <Badge variant={badge.variant}>{badge.label}</Badge>
+                      ) : briefReady ? (
+                        <span className="inline-flex items-center gap-1.5 text-[12px] text-[#007AFF] font-medium">
+                          <FileText className="size-3.5" /> See brief
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 text-[12px] text-[#86868B] font-medium">
+                          <Clock className="size-3.5" /> Brief pending
+                        </span>
+                      )
+
+                      const rowBody = (
+                        <>
                           <div className="min-w-0">
                             <div className="text-[14px] font-medium">{MONTHS[p.month - 1]}</div>
                             <div className="text-[12px] text-[#86868B] mt-0.5 truncate">{p.name}</div>
                           </div>
-                          <Badge variant={badge.variant}>{badge.label}</Badge>
+                          {right}
+                        </>
+                      )
+
+                      return blockClick ? (
+                        <div
+                          key={p.id}
+                          className={rowClasses}
+                          title="The strategist is still putting this campaign together."
+                          aria-disabled
+                        >
+                          {rowBody}
+                        </div>
+                      ) : (
+                        <Link
+                          key={p.id}
+                          href={`/brands/${brand.slug}/calendar/${p.id}`}
+                          className={rowClasses}
+                        >
+                          {rowBody}
                         </Link>
                       )
                     })}

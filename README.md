@@ -1,6 +1,6 @@
-# Proud Email OS
+# PUNCH
 
-Internal email-marketing platform for Proud Creative. Plans monthly calendars, drafts copy and design briefs, and structures client approvals, powered by Claude with each brand's knowledge bank as context.
+Proud Creative's email-marketing OS. Plans monthly calendars, drafts copy and design briefs, and structures client approvals, powered by Claude with each brand's knowledge bank as context.
 
 Spec docs live in the parent folder (`../Proud Creative - Email Studio.md`, `../proud-email-os-phase-2-spec.md`). Production plan: `~/.claude/plans/i-am-creating-an-recursive-pixel.md`.
 

@@ -73,7 +73,7 @@ export function Sidebar({
           <div className="w-6 h-6 rounded-md bg-[#1D1D1F] flex items-center justify-center group-hover:bg-black transition">
             <span className="text-white font-semibold text-[11px]">P</span>
           </div>
-          <div className="text-[13px] font-semibold text-[#1D1D1F] tracking-display">Proud Email OS</div>
+          <div className="text-[13px] font-semibold text-[#1D1D1F] tracking-display">PUNCH</div>
         </Link>
       </div>
 

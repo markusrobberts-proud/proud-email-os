@@ -12,7 +12,7 @@ export default function SignInPage() {
             Proud Creative
           </div>
           <h1 className="text-[28px] font-semibold tracking-tight mt-1" style={{ letterSpacing: "-0.02em" }}>
-            Email OS
+            PUNCH
           </h1>
         </div>
         <SignIn appearance={{ elements: { rootBox: "w-full", card: "glass-strong rounded-2xl" } }} />

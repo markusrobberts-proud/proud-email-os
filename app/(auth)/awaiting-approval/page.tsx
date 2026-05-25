@@ -12,7 +12,7 @@ export default async function AwaitingApprovalPage() {
             <span className="text-white font-semibold text-[15px]">P</span>
           </div>
           <div className="text-[11px] font-semibold tracking-widest uppercase text-[#86868B]">
-            Proud Email OS
+            PUNCH
           </div>
         </div>
         <div className="glass-strong rounded-2xl p-7 text-center">

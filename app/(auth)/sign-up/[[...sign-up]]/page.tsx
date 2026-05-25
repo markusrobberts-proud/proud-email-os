@@ -12,7 +12,7 @@ export default function SignUpPage() {
             Proud Creative
           </div>
           <h1 className="text-[28px] font-semibold tracking-tight mt-1" style={{ letterSpacing: "-0.02em" }}>
-            Join Email OS
+            Join PUNCH
           </h1>
           <p className="text-[13px] text-[#6E6E73] mt-3">An admin will activate your account once you're in.</p>
         </div>

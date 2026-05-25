@@ -161,7 +161,7 @@ export default async function ClientApprovalPage({
       </div>
 
       <footer className="mt-10 text-[11px] text-[#86868B] text-center">
-        Powered by Proud Email OS. Approvals are recorded with timestamp.
+        Powered by PUNCH. Approvals are recorded with timestamp.
       </footer>
 
       <style>{`

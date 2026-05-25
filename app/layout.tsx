@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Proud Email OS",
-  description: "Proud Creative's internal email-marketing platform.",
+  title: "PUNCH",
+  description: "Proud Creative's email-marketing OS.",
 };
 
 export default function RootLayout({

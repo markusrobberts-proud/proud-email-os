@@ -73,7 +73,7 @@ export function CreateBrandForm() {
             required
             value={form.name}
             onChange={(v) => set("name", v)}
-            placeholder="Walnut Melbourne"
+            placeholder="Your brand"
             error={fe.name}
           />
           <Field
@@ -81,7 +81,7 @@ export function CreateBrandForm() {
             name="industry"
             value={form.industry}
             onChange={(v) => set("industry", v)}
-            placeholder="Fashion"
+            placeholder="e.g. Fashion, Coffee, Beauty"
             error={fe.industry}
           />
         </FieldRow>
@@ -97,7 +97,7 @@ export function CreateBrandForm() {
               name="website_url"
               value={form.website_url}
               onChange={(e) => set("website_url", e.target.value)}
-              placeholder="https://walnutmelbourne.com.au"
+              placeholder="https://yourbrand.com"
               className="flex-1"
             />
             <Button
@@ -215,7 +215,7 @@ export function CreateBrandForm() {
           name="font_heading"
           value={form.font_heading}
           onChange={(v) => set("font_heading", v)}
-          placeholder="GT Sectra"
+          placeholder="Display or serif"
           error={fe.font_heading}
         />
         <Field
@@ -223,7 +223,7 @@ export function CreateBrandForm() {
           name="font_body"
           value={form.font_body}
           onChange={(v) => set("font_body", v)}
-          placeholder="Inter"
+          placeholder="Sans-serif"
           error={fe.font_body}
         />
       </FieldRow>
@@ -236,6 +236,7 @@ export function CreateBrandForm() {
           name="contact_name"
           value={form.contact_name}
           onChange={(v) => set("contact_name", v)}
+          placeholder="First and last name"
           error={fe.contact_name}
         />
         <Field
@@ -244,6 +245,7 @@ export function CreateBrandForm() {
           type="email"
           value={form.contact_email}
           onChange={(v) => set("contact_email", v)}
+          placeholder="name@yourbrand.com"
           error={fe.contact_email}
         />
       </FieldRow>
@@ -347,7 +349,7 @@ function ColorField({
           name={name}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="#1D1D1F"
+          placeholder="#000000"
           className="flex-1"
         />
       </div>

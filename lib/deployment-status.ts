@@ -61,14 +61,15 @@ export async function fetchLatestDeployment(): Promise<DeploymentStatus | null> 
 }
 
 /**
- * 8-second cache: enough to coalesce a burst of layout renders during one
- * navigation without making the banner feel stale. The client component
- * polls fresh every 10s on top of this.
+ * 5-second cache: coalesces the burst of layout renders during one
+ * navigation while staying fresh enough that the banner catches up with
+ * a new deploy within one client refresh tick (default 10s, 4s while a
+ * build is in flight).
  */
 export const getDeploymentStatus = unstable_cache(
   fetchLatestDeployment,
   ["deployment-status"],
-  { revalidate: 8, tags: ["deployment-status"] },
+  { revalidate: 5, tags: ["deployment-status"] },
 )
 
 export function deploymentStateLabel(state: DeploymentStatus["state"]): {

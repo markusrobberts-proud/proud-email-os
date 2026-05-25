@@ -1,13 +1,13 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 import { GitBranch, ExternalLink } from "lucide-react"
 import {
   deploymentStateLabel,
   shortRelativeTime,
   type DeploymentStatus,
 } from "@/lib/deployment-status"
-import { pollDeploymentStatus } from "./deployment-banner-actions"
 
 const TONE_DOT: Record<string, string> = {
   ready: "bg-[#30D158]",
@@ -24,59 +24,64 @@ const TONE_TEXT: Record<string, string> = {
 }
 
 /**
- * Live deployment banner. Re-fetches every 10s while the tab is visible so
- * the banner catches up with a fresh push within a few seconds, and bumps
- * to ~3s while a build is BUILDING/QUEUED so the "Live" flip feels instant.
- * Stops polling when the tab is hidden to avoid wasted Vercel API calls.
+ * Live deployment banner. Triggers a server-component refresh on a tick
+ * so the DeploymentBanner server component re-renders with fresh Vercel
+ * state without requiring a manual page reload.
+ *
+ * Why router.refresh and not a custom poll: the previous implementation
+ * called a Server Action with a try/catch that swallowed all errors,
+ * which meant any auth or network hiccup left the banner silently stale
+ * until next reload. router.refresh is harder to get wrong: Next fetches
+ * the layout fresh, the server component reads its (short-cached) Vercel
+ * status, the dot/SHA/relative-time updates without any client logic.
  */
 export function DeploymentBannerView({ initial }: { initial: DeploymentStatus }) {
-  const [status, setStatus] = useState<DeploymentStatus>(initial)
-  // Tick every second so the relative-time label stays honest even when
-  // the underlying status hasn't changed.
+  const router = useRouter()
+  // Tick every second so the "Xs ago" label stays honest between refreshes.
   const [, setTick] = useState(0)
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const intervalRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     let cancelled = false
 
-    function intervalFor(state: DeploymentStatus["state"]) {
-      // Tighter loop while a build is in flight; otherwise back off.
-      if (state === "BUILDING" || state === "QUEUED" || state === "INITIALIZING") return 3000
-      return 10000
-    }
+    // Faster cadence while a build is in flight so the "Live" flip lands
+    // within a few seconds of the build completing.
+    const buildInFlight =
+      initial.state === "BUILDING" || initial.state === "QUEUED" || initial.state === "INITIALIZING"
+    const refreshIntervalMs = buildInFlight ? 4000 : 10000
 
-    async function tick() {
-      if (document.hidden) {
-        // Skip the network round-trip while hidden; reschedule cheap.
-        if (!cancelled) timerRef.current = setTimeout(tick, 4000)
-        return
-      }
-      try {
-        const next = await pollDeploymentStatus()
-        if (!cancelled && next) setStatus(next)
-      } catch {
-        // Soft-fail. Keep polling.
-      }
-      if (!cancelled) timerRef.current = setTimeout(tick, intervalFor(status.state))
+    function schedule() {
+      if (cancelled) return
+      intervalRef.current = setTimeout(() => {
+        if (document.hidden) {
+          // Skip refresh while tab is hidden; reschedule cheap.
+          schedule()
+          return
+        }
+        router.refresh()
+        schedule()
+      }, refreshIntervalMs)
     }
+    schedule()
 
-    timerRef.current = setTimeout(tick, intervalFor(status.state))
     return () => {
       cancelled = true
-      if (timerRef.current) clearTimeout(timerRef.current)
+      if (intervalRef.current) clearTimeout(intervalRef.current)
     }
-  }, [status.state])
+    // `initial.state` so when the server re-renders us with a new state,
+    // we reschedule at the appropriate cadence (build-in-flight vs idle).
+  }, [router, initial.state])
 
-  // Lightweight 1s clock for the "Xs ago" label.
+  // 1s clock so the "Xs ago" stays honest between refreshes.
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 1000)
     return () => clearInterval(id)
   }, [])
 
-  const { label, tone } = deploymentStateLabel(status.state)
-  const sha = status.commitSha?.slice(0, 7)
-  const age = status.createdAt ? shortRelativeTime(status.createdAt) : null
-  const href = status.inspectorUrl ?? "#"
+  const { label, tone } = deploymentStateLabel(initial.state)
+  const sha = initial.commitSha?.slice(0, 7)
+  const age = initial.createdAt ? shortRelativeTime(initial.createdAt) : null
+  const href = initial.inspectorUrl ?? "#"
 
   return (
     <a
@@ -95,9 +100,9 @@ export function DeploymentBannerView({ initial }: { initial: DeploymentStatus })
           <code className="text-[10.5px] font-mono">{sha}</code>
         </span>
       )}
-      {status.commitMessage && (
+      {initial.commitMessage && (
         <span className="text-[#86868B] truncate max-w-[420px] hidden sm:inline">
-          {status.commitMessage.split("\n")[0]}
+          {initial.commitMessage.split("\n")[0]}
         </span>
       )}
       {age && <span className="text-[#86868B]">· {age}</span>}

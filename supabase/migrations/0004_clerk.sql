@@ -35,9 +35,18 @@ alter table public.approval_links drop constraint if exists approval_links_creat
 alter table public.audit_log drop constraint if exists audit_log_user_id_fkey;
 alter table public.users drop constraint if exists users_id_fkey;
 
--- 4. Clean slate for users + brand_members.
+-- 4. Clean slate for users + brand_members. Also null out every other
+--    user-id reference so the recreated foreign keys don't choke on
+--    orphans from the wiped users table.
 delete from public.brand_members;
 delete from public.users;
+update public.brands set digital_lead_id = null, designer_id = null;
+update public.knowledge_items set added_by_user_id = null;
+update public.proud_strategy_sections set updated_by_user_id = null;
+update public.proud_strategy_revisions set edited_by_user_id = null;
+update public.campaign_plans set approved_by_user_id = null;
+update public.approval_links set created_by_user_id = null;
+update public.audit_log set user_id = null;
 
 -- 5. Recast every user_id column from uuid to text.
 alter table public.users alter column id type text using id::text;

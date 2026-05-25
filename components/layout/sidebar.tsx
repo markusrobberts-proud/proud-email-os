@@ -45,7 +45,12 @@ export function Sidebar({
   const router = useRouter()
   const [switcherOpen, setSwitcherOpen] = useState(false)
 
-  const activeBrand = brands.find((b) => b.slug === activeBrandSlug) ?? null
+  // Fall back to deriving the slug from the URL if the layout couldn't
+  // (e.g. transient pathname-header issue). Keeps the switcher honest
+  // regardless of how the prop got here.
+  const slugFromPath = pathname.match(/^\/brands\/([^/?#]+)/)?.[1] ?? null
+  const slugCandidate = activeBrandSlug ?? slugFromPath
+  const activeBrand = brands.find((b) => b.slug === slugCandidate) ?? null
 
   const orgNav = [
     { href: "/", label: "Home", icon: LayoutDashboard, exact: true },

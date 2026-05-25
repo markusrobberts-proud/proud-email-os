@@ -1,8 +1,14 @@
 import { clerkMiddleware } from "@clerk/nextjs/server"
+import { NextResponse } from "next/server"
 
-// Next.js 16 calls the request-interception entry "proxy" instead of "middleware".
-// Clerk's clerkMiddleware works as the proxy handler.
-export const proxy = clerkMiddleware()
+// Wrap Clerk's middleware so we can stash the request pathname in a header
+// the dashboard layout reads (used to highlight the active brand in the
+// sidebar switcher and to fetch the active brand's doc count).
+export const proxy = clerkMiddleware(async (_auth, req) => {
+  const requestHeaders = new Headers(req.headers)
+  requestHeaders.set("x-pathname", req.nextUrl.pathname)
+  return NextResponse.next({ request: { headers: requestHeaders } })
+})
 
 export const config = {
   matcher: [

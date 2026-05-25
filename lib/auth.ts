@@ -1,7 +1,8 @@
 import { cache } from "react"
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
-import { createSupabaseServerClient } from "./supabase/server"
+import { auth, currentUser } from "@clerk/nextjs/server"
+import { createSupabaseServiceClient } from "./supabase/server"
 
 export type Role = "super_admin" | "admin" | "strategist" | "designer" | "viewer" | "pending"
 
@@ -22,35 +23,50 @@ export const VIEW_AS_COOKIE = "proud-email-os.view-as"
 const IMPERSONABLE_ROLES: Role[] = ["admin", "strategist", "designer", "viewer"]
 
 /**
- * `cache()` memoises the result per request, so calling `getUser()` from
- * a layout and a page does just one DB round trip.
+ * Resolves the signed-in Clerk user, upserts a public.users row for them
+ * on first sign-in (or refreshes email/display name if they changed), and
+ * applies any super-admin "view as" impersonation.
+ *
+ * `cache()` memoises per request so the layout and page share one round trip.
  */
 export const getUser = cache(async (): Promise<AppUser | null> => {
-  const supabase = await createSupabaseServerClient()
-  const { data: authData } = await supabase.auth.getUser()
-  if (!authData?.user) return null
+  const { userId } = await auth()
+  if (!userId) return null
 
+  const clerk = await currentUser()
+  if (!clerk) return null
+
+  const email = clerk.primaryEmailAddress?.emailAddress ?? clerk.emailAddresses[0]?.emailAddress ?? ""
+  const displayName =
+    [clerk.firstName, clerk.lastName].filter(Boolean).join(" ").trim() ||
+    clerk.username ||
+    null
+
+  const supabase = createSupabaseServiceClient()
   const { data: profile } = await supabase
     .from("users")
-    .select("id,email,display_name,role")
-    .eq("id", authData.user.id)
+    .select("id, email, display_name, role")
+    .eq("id", userId)
     .maybeSingle()
 
-  const baseEmail = authData.user.email ?? ""
+  let actualRole: Role
   if (!profile) {
-    return {
-      id: authData.user.id,
-      email: baseEmail,
-      displayName: null,
+    await supabase.from("users").insert({
+      id: userId,
+      email,
+      display_name: displayName,
       role: "pending",
-      actualRole: "pending",
-      viewingAs: null,
+    })
+    actualRole = "pending"
+  } else {
+    actualRole = ((profile.role as Role) ?? "pending") as Role
+    // Keep email + display name in sync with Clerk if they changed.
+    if (profile.email !== email || profile.display_name !== displayName) {
+      await supabase.from("users").update({ email, display_name: displayName }).eq("id", userId)
     }
   }
 
-  const actualRole = ((profile.role as Role) ?? "pending") as Role
-
-  // Only super_admin can impersonate another role.
+  // Only a real super_admin can impersonate another role.
   let viewingAs: Role | null = null
   if (actualRole === "super_admin") {
     const cookieStore = await cookies()
@@ -63,9 +79,9 @@ export const getUser = cache(async (): Promise<AppUser | null> => {
   const role = viewingAs ?? actualRole
 
   return {
-    id: profile.id as string,
-    email: profile.email as string,
-    displayName: (profile.display_name as string | null) ?? null,
+    id: userId,
+    email,
+    displayName,
     role,
     actualRole,
     viewingAs,
@@ -74,7 +90,7 @@ export const getUser = cache(async (): Promise<AppUser | null> => {
 
 export async function requireUser(): Promise<AppUser> {
   const user = await getUser()
-  if (!user) redirect("/login")
+  if (!user) redirect("/sign-in")
   return user
 }
 

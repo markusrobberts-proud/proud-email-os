@@ -1,33 +1,11 @@
-import { NextResponse, type NextRequest } from "next/server"
-import { createServerClient } from "@supabase/ssr"
+import { clerkMiddleware } from "@clerk/nextjs/server"
 
-export async function proxy(request: NextRequest) {
-  const requestHeaders = new Headers(request.headers)
-  requestHeaders.set("x-pathname", request.nextUrl.pathname)
-
-  let response = NextResponse.next({ request: { headers: requestHeaders } })
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          response = NextResponse.next({ request: { headers: requestHeaders } })
-          cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options))
-        },
-      },
-    },
-  )
-
-  await supabase.auth.getUser()
-  return response
-}
+// Next.js 16 calls the request-interception entry "proxy" instead of "middleware".
+// Clerk's clerkMiddleware works as the proxy handler.
+export const proxy = clerkMiddleware()
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
 }

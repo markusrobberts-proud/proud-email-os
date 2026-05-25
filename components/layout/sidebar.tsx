@@ -16,6 +16,7 @@ import {
   ChevronDown,
   Check,
   Plus,
+  HelpCircle,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { BrandIcon } from "@/components/ui/brand-icon"
@@ -205,6 +206,18 @@ export function Sidebar({
           </div>
           <span className="text-[#1D1D1F]">Settings</span>
           <Settings className="size-3.5 text-[#86868B] ml-auto" />
+        </Link>
+        <Link
+          href="/guide"
+          className={cn(
+            "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[13px] transition mt-0.5",
+            pathname.startsWith("/guide") ? "bg-white card-shadow" : "hover:bg-white/60",
+          )}
+        >
+          <div className="w-6 h-6 flex items-center justify-center shrink-0">
+            <HelpCircle className="size-3.5 text-[#86868B]" />
+          </div>
+          <span className="text-[#1D1D1F]">How to use PUNCH</span>
         </Link>
       </div>
     </aside>

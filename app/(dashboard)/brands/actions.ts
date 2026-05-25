@@ -47,10 +47,24 @@ export async function createBrandAction(
     return { ok: false, fieldErrors }
   }
 
-  const slug = toSlug(parsed.data.name)
-  const inboxAlias = slug
-
+  const baseSlug = toSlug(parsed.data.name)
   const supabase = await createSupabaseServerClient()
+
+  // Pick the first available slug + inbox alias. If the user already created
+  // "walnut-melbourne" we land on "walnut-melbourne-2" rather than throwing
+  // a raw unique-constraint error.
+  let slug = baseSlug
+  for (let n = 2; n < 50; n++) {
+    const { data: existing } = await supabase
+      .from("brands")
+      .select("id")
+      .or(`slug.eq.${slug},inbox_alias.eq.${slug}`)
+      .limit(1)
+      .maybeSingle()
+    if (!existing) break
+    slug = `${baseSlug}-${n}`
+  }
+
   const { data, error } = await supabase
     .from("brands")
     .insert({
@@ -66,12 +80,19 @@ export async function createBrandAction(
       font_body: parsed.data.font_body || null,
       tone_of_voice: parsed.data.tone_of_voice || null,
       target_audience: parsed.data.target_audience || null,
-      inbox_alias: inboxAlias,
+      inbox_alias: slug,
     })
     .select("id, slug")
     .single()
 
-  if (error || !data) return { ok: false, error: error?.message ?? "Could not create brand" }
+  if (error || !data) {
+    // Friendlier message on remaining edge cases.
+    const msg = error?.message ?? "Could not create brand"
+    if (msg.includes("duplicate key")) {
+      return { ok: false, error: "That brand looks like it already exists. Pick a slightly different name." }
+    }
+    return { ok: false, error: msg }
+  }
 
   await supabase
     .from("brand_members")

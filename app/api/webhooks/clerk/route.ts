@@ -1,7 +1,9 @@
 import { headers } from "next/headers"
 import { Webhook } from "svix"
 import { NextResponse } from "next/server"
+import { revalidateTag } from "next/cache"
 import { createSupabaseServiceClient } from "@/lib/supabase/server"
+import { USER_CACHE_TAG } from "@/lib/auth"
 
 type ClerkUserEvent = {
   type: "user.created" | "user.updated" | "user.deleted"
@@ -76,5 +78,6 @@ export async function POST(req: Request) {
     await supabase.from("users").delete().eq("id", id)
   }
 
+  revalidateTag(USER_CACHE_TAG, "default")
   return NextResponse.json({ ok: true })
 }

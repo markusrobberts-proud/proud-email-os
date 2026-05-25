@@ -1,5 +1,6 @@
 import { cache } from "react"
 import { cookies } from "next/headers"
+import { unstable_cache } from "next/cache"
 import { redirect } from "next/navigation"
 import { auth, currentUser } from "@clerk/nextjs/server"
 import { createSupabaseServiceClient } from "./supabase/server"
@@ -19,43 +20,69 @@ export type AppUser = {
 }
 
 export const VIEW_AS_COOKIE = "proud-email-os.view-as"
+export const USER_CACHE_TAG = "user-profile"
 
 const IMPERSONABLE_ROLES: Role[] = ["admin", "strategist", "designer", "viewer"]
+
+type Profile = {
+  id: string
+  email: string
+  display_name: string | null
+  role: Role
+}
+
+/**
+ * Cross-request memoised profile lookup. Tagged so we can revalidate when
+ * a role changes (e.g. updateUserRole or the view-as toggle).
+ *
+ * 60s freshness is fine: role changes are infrequent and the impersonation
+ * cookie is read separately on every request anyway.
+ */
+const fetchProfile = unstable_cache(
+  async (userId: string): Promise<Profile | null> => {
+    const supabase = createSupabaseServiceClient()
+    const { data } = await supabase
+      .from("users")
+      .select("id, email, display_name, role")
+      .eq("id", userId)
+      .maybeSingle()
+    if (!data) return null
+    return {
+      id: data.id as string,
+      email: (data.email as string) ?? "",
+      display_name: (data.display_name as string | null) ?? null,
+      role: ((data.role as Role) ?? "pending") as Role,
+    }
+  },
+  ["user-profile"],
+  { revalidate: 60, tags: [USER_CACHE_TAG] },
+)
 
 /**
  * Resolves the signed-in Clerk user, reads the public.users profile, and
  * applies any super-admin "view as" impersonation.
  *
- * Fast path: when a public.users row already exists, this never calls
- * Clerk's currentUser() (a ~200ms network round trip). It only falls back
- * to Clerk when the row is missing (first sign-in before the
- * /api/webhooks/clerk handler has provisioned the row).
- *
- * `cache()` memoises per request so the layout and page share one round trip.
+ * Hot path is one cached DB lookup. Cold path (first sign-in only) also
+ * calls Clerk's currentUser() to seed the row.
  */
 export const getUser = cache(async (): Promise<AppUser | null> => {
   const { userId } = await auth()
   if (!userId) return null
 
-  const supabase = createSupabaseServiceClient()
-  const { data: profile } = await supabase
-    .from("users")
-    .select("id, email, display_name, role")
-    .eq("id", userId)
-    .maybeSingle()
+  let profile = await fetchProfile(userId)
 
   let actualRole: Role
   let email: string
   let displayName: string | null
 
   if (profile) {
-    actualRole = ((profile.role as Role) ?? "pending") as Role
-    email = profile.email as string
-    displayName = (profile.display_name as string | null) ?? null
+    actualRole = profile.role
+    email = profile.email
+    displayName = profile.display_name
   } else {
-    // First-sign-in fallback: provision the row inline so the user isn't
-    // stuck. The Clerk webhook also does this, race-protects against the
-    // webhook arriving after the first request.
+    // First-sign-in fallback. The /api/webhooks/clerk handler also seeds
+    // the row, this races-protect against the webhook arriving after the
+    // first request.
     const clerk = await currentUser()
     if (!clerk) return null
     email = clerk.primaryEmailAddress?.emailAddress ?? clerk.emailAddresses[0]?.emailAddress ?? ""
@@ -63,10 +90,13 @@ export const getUser = cache(async (): Promise<AppUser | null> => {
       [clerk.firstName, clerk.lastName].filter(Boolean).join(" ").trim() ||
       clerk.username ||
       null
+    const supabase = createSupabaseServiceClient()
     await supabase
       .from("users")
       .upsert({ id: userId, email, display_name: displayName, role: "pending" })
     actualRole = "pending"
+    // Best-effort: bust the cache so subsequent requests see the new row.
+    profile = { id: userId, email, display_name: displayName, role: "pending" }
   }
 
   // Only a real super_admin can impersonate another role.

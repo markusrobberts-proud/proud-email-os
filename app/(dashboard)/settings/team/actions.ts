@@ -1,13 +1,15 @@
 "use server"
 
-import { revalidatePath } from "next/cache"
+import { revalidatePath, revalidateTag } from "next/cache"
 import { z } from "zod"
 import { requireRole } from "@/lib/rbac"
+import { USER_CACHE_TAG } from "@/lib/auth"
 import { createSupabaseServerClient, createSupabaseServiceClient } from "@/lib/supabase/server"
 import { recordAudit } from "@/lib/audit"
 
+// Clerk user IDs look like "user_2xY7..." rather than UUIDs.
 const RoleSchema = z.object({
-  userId: z.string().uuid(),
+  userId: z.string().min(1).max(128),
   role: z.enum(["super_admin", "admin", "strategist", "designer", "viewer", "pending"]),
 })
 
@@ -37,6 +39,7 @@ export async function updateUserRole(formData: FormData) {
     meta: { new_role: parsed.data.role },
   })
 
+  revalidateTag(USER_CACHE_TAG, "default")
   revalidatePath("/settings/team")
 }
 

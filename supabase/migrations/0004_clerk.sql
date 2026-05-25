@@ -1,12 +1,29 @@
 -- Migrate auth from Supabase Auth (uuid IDs) to Clerk (text IDs).
 -- Clerk user IDs look like "user_2xY7..." so we recast every user-id column
 -- from uuid to text. Sam confirmed clean slate for users + brand_members.
+--
+-- Run as one script in the Supabase SQL editor. It's safe to re-run.
 
 -- 1. Drop the old auth-mirror trigger and helper. Clerk doesn't write to auth.users.
 drop trigger if exists on_auth_user_created on auth.users;
 drop function if exists public.handle_new_auth_user;
 
--- 2. Drop foreign keys that reference public.users so we can change the type.
+-- 2. Drop every RLS policy that touches a user-id column or auth.uid().
+--    They all need to be recreated (or replaced) anyway because we no longer
+--    have Supabase Auth populating auth.uid().
+do $$
+declare r record;
+begin
+  for r in
+    select schemaname, tablename, policyname
+    from pg_policies
+    where schemaname = 'public'
+  loop
+    execute format('drop policy if exists %I on %I.%I', r.policyname, r.schemaname, r.tablename);
+  end loop;
+end $$;
+
+-- 3. Drop foreign keys that reference public.users so we can change the type.
 alter table public.brand_members drop constraint if exists brand_members_user_id_fkey;
 alter table public.brands drop constraint if exists brands_digital_lead_id_fkey;
 alter table public.brands drop constraint if exists brands_designer_id_fkey;
@@ -18,11 +35,11 @@ alter table public.approval_links drop constraint if exists approval_links_creat
 alter table public.audit_log drop constraint if exists audit_log_user_id_fkey;
 alter table public.users drop constraint if exists users_id_fkey;
 
--- 3. Clean slate for users. Brands, knowledge, plans stay.
+-- 4. Clean slate for users + brand_members.
 delete from public.brand_members;
 delete from public.users;
 
--- 4. Recast every user_id column to text.
+-- 5. Recast every user_id column from uuid to text.
 alter table public.users alter column id type text using id::text;
 alter table public.brand_members alter column user_id type text using user_id::text;
 alter table public.brands
@@ -39,7 +56,7 @@ alter table public.approval_links
   alter column created_by_user_id type text using created_by_user_id::text;
 alter table public.audit_log alter column user_id type text using user_id::text;
 
--- 5. Recreate foreign keys. They now reference public.users(id) which is text.
+-- 6. Recreate foreign keys against the text id.
 alter table public.brand_members
   add constraint brand_members_user_id_fkey
   foreign key (user_id) references public.users(id) on delete cascade;
@@ -67,14 +84,20 @@ alter table public.audit_log
   add constraint audit_log_user_id_fkey
   foreign key (user_id) references public.users(id) on delete set null;
 
--- 6. The current_user_role() helper used auth.uid() (Supabase Auth).
--- With Clerk we use the service-role server client for all writes, so RLS
--- still works for direct anon reads but we don't rely on auth.uid().
--- has_brand_access() and is_admin() still work for service-role queries
--- (they bypass RLS) and for anon reads they'll just return false unless
--- a Clerk JWT is set up later as a third-party Supabase auth provider.
-
+-- 7. current_user_role() is no longer used by the app. Server code authenticates
+-- via Clerk and writes through the Supabase service-role client (RLS-exempt).
+-- Return null so any leftover SQL caller never accidentally elevates privileges.
 create or replace function public.current_user_role() returns user_role
 language sql stable security definer set search_path = public as $$
   select null::user_role
 $$;
+
+-- 8. RLS posture after migration.
+-- All app access goes through the service-role server client, which bypasses
+-- RLS. We keep RLS enabled on every table (defence in depth) with no
+-- permissive policies, so any future anon/authenticated client query is
+-- denied by default. Add scoped policies later if/when we wire Clerk's JWT
+-- as a third-party Supabase auth provider.
+--
+-- (Nothing to do here. The previous step already dropped every policy and
+-- RLS is still enabled from 0001_init.sql.)

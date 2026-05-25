@@ -4,7 +4,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Avatar, initialsFromName } from "@/components/ui/avatar"
 import { PageHeader, PageShell } from "@/components/layout/page-header"
-import { InviteUserForm } from "./invite-form"
 import { RoleSelect } from "./role-select"
 
 type UserRow = {
@@ -49,13 +48,18 @@ export default async function TeamPage() {
 
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle>Invite a teammate</CardTitle>
+          <CardTitle>How to add a teammate</CardTitle>
           <CardDescription>
-            They get a magic-link sign-in. With no service-role key set, the form will surface a link you can share manually.
+            Auth is Clerk. Self-signup keeps the flow simple, no invite emails to manage.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <InviteUserForm />
+        <CardContent className="text-[13px] text-[#1D1D1F]">
+          <ol className="list-decimal pl-5 space-y-1.5 leading-relaxed">
+            <li>Send them the sign-in link: <code className="text-[12.5px] bg-[#F5F5F7] px-1.5 py-0.5 rounded">{process.env.NEXT_PUBLIC_APP_URL ?? "https://punch-email-os.vercel.app"}/sign-in</code></li>
+            <li>They sign in with Google SSO (proudaspunch.studio works out of the box) or email magic link.</li>
+            <li>They land on a "Pending approval" screen. Come back here and pick their role below.</li>
+            <li>They refresh and they're in.</li>
+          </ol>
         </CardContent>
       </Card>
 

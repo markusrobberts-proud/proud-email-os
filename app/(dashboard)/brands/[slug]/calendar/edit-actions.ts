@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
-import { requireRole } from "@/lib/rbac"
+import { requireRole, requireBrandAccess } from "@/lib/rbac"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { recordAudit } from "@/lib/audit"
 
@@ -62,6 +62,16 @@ export async function saveEmailBrief(formData: FormData) {
   if (!parsed.success) throw new Error("Invalid brief input")
 
   const supabase = await createSupabaseServerClient()
+  // Look up brand_id first so we can scope the write to a brand the user
+  // actually has access to (strategist+ passes through automatically).
+  const { data: existing } = await supabase
+    .from("campaign_emails")
+    .select("brand_id")
+    .eq("id", parsed.data.emailId)
+    .single()
+  if (!existing) throw new Error("Email not found")
+  await requireBrandAccess(existing.brand_id as string)
+
   const { emailId, ...fields } = parsed.data
   const update: Record<string, string | null> = {}
   for (const [k, v] of Object.entries(fields)) update[k] = v || null

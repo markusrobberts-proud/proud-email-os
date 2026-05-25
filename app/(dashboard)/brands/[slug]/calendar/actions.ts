@@ -423,6 +423,7 @@ export async function generateBriefForEmail(emailId: string) {
 }
 
 export async function generateAllCopy(planId: string) {
+  await requireRole("strategist")
   const supabase = await createSupabaseServerClient()
   await supabase.from("campaign_plans").update({ status: "copy_generating" }).eq("id", planId)
   const { data: emails } = await supabase

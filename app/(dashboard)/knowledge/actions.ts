@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
-import { requireRole } from "@/lib/rbac"
+import { requireRole, requireBrandAccess } from "@/lib/rbac"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { recordAudit } from "@/lib/audit"
 
@@ -25,6 +25,7 @@ export async function addManualKnowledgeNote(formData: FormData) {
     sourceType: formData.get("sourceType"),
   })
   if (!parsed.success) return
+  await requireBrandAccess(parsed.data.brandId)
 
   const supabase = await createSupabaseServerClient()
   const { data } = await supabase

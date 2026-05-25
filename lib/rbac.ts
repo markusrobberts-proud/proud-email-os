@@ -17,9 +17,20 @@ export async function requireRole(min: Role): Promise<AppUser> {
   return user
 }
 
+/**
+ * Strategist+ have org-wide access by design (they shape every brand's
+ * strategy). Designer / viewer need a brand_members row to act on a
+ * specific brand.
+ */
 export async function requireBrandAccess(brandId: string): Promise<AppUser> {
   const user = await requireApprovedUser()
-  if (user.role === "admin" || user.role === "super_admin") return user
+  if (
+    user.role === "super_admin" ||
+    user.role === "admin" ||
+    user.role === "strategist"
+  ) {
+    return user
+  }
 
   const supabase = await createSupabaseServerClient()
   const { data, error } = await supabase

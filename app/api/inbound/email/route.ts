@@ -77,13 +77,16 @@ function htmlToText(html: string): string {
 }
 
 export async function POST(req: Request) {
-  // Optional shared-secret check.
+  // Required shared secret. Fail closed: if the env var is missing the
+  // endpoint refuses every request rather than running unauthenticated.
   const token = process.env.INBOUND_EMAIL_WEBHOOK_TOKEN
-  if (token) {
-    const auth = req.headers.get("authorization") ?? ""
-    if (auth !== `Bearer ${token}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+  if (!token) {
+    console.error("[inbound] INBOUND_EMAIL_WEBHOOK_TOKEN is not configured; rejecting request")
+    return NextResponse.json({ error: "Inbound webhook is not configured" }, { status: 503 })
+  }
+  const auth = req.headers.get("authorization") ?? ""
+  if (auth !== `Bearer ${token}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
   let payload: InboundPayload

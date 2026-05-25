@@ -4,7 +4,7 @@ import { revalidatePath, revalidateTag } from "next/cache"
 import { z } from "zod"
 import { requireRole } from "@/lib/rbac"
 import { USER_CACHE_TAG } from "@/lib/auth"
-import { createSupabaseServerClient, createSupabaseServiceClient } from "@/lib/supabase/server"
+import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { recordAudit } from "@/lib/audit"
 import { notify } from "@/lib/notifications"
 
@@ -30,6 +30,19 @@ export async function updateUserRole(formData: FormData) {
   }
 
   const supabase = await createSupabaseServerClient()
+
+  // Demoting a super_admin requires being a super_admin yourself. Without
+  // this, a regular admin could lock out the only person who can hand out
+  // super_admin or impersonate other roles.
+  const { data: existing } = await supabase
+    .from("users")
+    .select("role")
+    .eq("id", parsed.data.userId)
+    .maybeSingle()
+  if (existing?.role === "super_admin" && admin.actualRole !== "super_admin") {
+    throw new Error("Only a super admin can change a super admin's role.")
+  }
+
   await supabase.from("users").update({ role: parsed.data.role }).eq("id", parsed.data.userId)
 
   await recordAudit({
@@ -61,58 +74,14 @@ export async function updateUserRole(formData: FormData) {
   revalidatePath("/settings/team")
 }
 
-const InviteSchema = z.object({
-  email: z.string().email(),
-  role: z.enum(["admin", "strategist", "designer", "viewer"]),
-})
-
-export type InviteResult = { ok: true; via: "service" | "magic_link_url"; url?: string } | { ok: false; error: string }
-
-export async function inviteUser(formData: FormData): Promise<InviteResult> {
-  const admin = await requireRole("admin")
-  const parsed = InviteSchema.safeParse({
-    email: formData.get("email"),
-    role: formData.get("role"),
-  })
-  if (!parsed.success) return { ok: false, error: "Invalid email or role" }
-
-  const hasServiceRole = !!process.env.SUPABASE_SERVICE_ROLE_KEY
-
-  if (hasServiceRole) {
-    const service = createSupabaseServiceClient()
-    const { data, error } = await service.auth.admin.inviteUserByEmail(parsed.data.email)
-    if (error) return { ok: false, error: error.message }
-
-    if (data?.user?.id) {
-      await service.from("users").upsert({
-        id: data.user.id,
-        email: parsed.data.email,
-        role: parsed.data.role,
-      })
-    }
-
-    await recordAudit({
-      userId: admin.id,
-      entityType: "user",
-      action: "invite",
-      meta: { email: parsed.data.email, role: parsed.data.role, via: "service" },
-    })
-
-    revalidatePath("/settings/team")
-    return { ok: true, via: "service" }
-  }
-
-  // No service role: surface the magic-link URL for the admin to share manually.
-  await recordAudit({
-    userId: admin.id,
-    entityType: "user",
-    action: "invite_url_generated",
-    meta: { email: parsed.data.email, role: parsed.data.role },
-  })
-
-  return {
-    ok: true,
-    via: "magic_link_url",
-    url: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/login`,
-  }
-}
+/**
+ * No inviteUser action lives here. Auth is Clerk, and the flow is:
+ *
+ *   1. Teammate visits NEXT_PUBLIC_APP_URL/sign-in and signs in (Google
+ *      SSO or email magic link via Clerk).
+ *   2. The Clerk webhook seeds a row in public.users with role=pending.
+ *   3. They land on /awaiting-approval until an admin promotes them
+ *      via updateUserRole above.
+ *
+ * If we later switch to Clerk's invitations API, add the action here.
+ */

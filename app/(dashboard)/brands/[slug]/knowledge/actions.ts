@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
-import { requireRole } from "@/lib/rbac"
+import { requireRole, requireBrandAccess } from "@/lib/rbac"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { recordAudit } from "@/lib/audit"
 
@@ -37,6 +37,7 @@ export async function uploadKnowledgeFile(formData: FormData) {
     extractedText: formData.get("extractedText") || undefined,
   })
   if (!parsed.success) throw new Error("Invalid input")
+  await requireBrandAccess(parsed.data.brandId)
 
   const file = formData.get("file") as File | null
   if (!file || file.size === 0) throw new Error("Pick a file")

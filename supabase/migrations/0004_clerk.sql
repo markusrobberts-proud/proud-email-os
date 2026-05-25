@@ -1,8 +1,27 @@
 -- Migrate auth from Supabase Auth (uuid IDs) to Clerk (text IDs).
 -- Clerk user IDs look like "user_2xY7..." so we recast every user-id column
--- from uuid to text. Sam confirmed clean slate for users + brand_members.
+-- from uuid to text.
 --
--- Run as one script in the Supabase SQL editor. It's safe to re-run.
+-- IDEMPOTENCY: this migration is destructive on first run (wipes
+-- public.users + public.brand_members and recasts FKs). A `do $$` block
+-- can only abort itself, not the whole script, so we raise an exception
+-- when the migration is already applied. That stops the rest of the
+-- script from running and shows a clear message in the SQL editor.
+-- We detect "already applied" by checking whether public.users.id is
+-- already a text column.
+do $$
+declare
+  uid_type text;
+begin
+  select data_type into uid_type
+  from information_schema.columns
+  where table_schema = 'public'
+    and table_name = 'users'
+    and column_name = 'id';
+  if uid_type = 'text' then
+    raise exception 'Clerk migration 0004 has already been applied (public.users.id is text). Aborting to avoid wiping data.';
+  end if;
+end $$;
 
 -- 1. Drop the old auth-mirror trigger and helper. Clerk doesn't write to auth.users.
 drop trigger if exists on_auth_user_created on auth.users;

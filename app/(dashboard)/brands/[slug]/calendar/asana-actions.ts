@@ -1,7 +1,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { requireRole } from "@/lib/rbac"
+import { requireRole, requireBrandAccess } from "@/lib/rbac"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { recordAudit } from "@/lib/audit"
 import { createAsanaTask } from "@/lib/asana"
@@ -19,6 +19,7 @@ export async function exportEmailToAsana(emailId: string) {
     .eq("id", emailId)
     .single()
   if (!email) throw new Error("Email not found")
+  await requireBrandAccess(email.brand_id as string)
 
   const { data: brand } = await supabase
     .from("brands")

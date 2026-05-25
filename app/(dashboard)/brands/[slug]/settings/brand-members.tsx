@@ -26,7 +26,7 @@ import {
 
 type Member = {
   user_id: string
-  role: "admin" | "strategist" | "designer" | "viewer"
+  role: "admin" | "strategist" | "designer" | "client"
   display_name: string | null
   email: string
 }
@@ -35,14 +35,14 @@ type Candidate = {
   id: string
   display_name: string | null
   email: string
-  role: "admin" | "strategist" | "designer" | "viewer"
+  role: "admin" | "strategist" | "designer" | "client"
 }
 
 const ROLE_COLOURS: Record<string, string> = {
   admin: "#1D1D1F",
   strategist: "#2D4F6B",
   designer: "#8B5A2B",
-  viewer: "#6E6E73",
+  client: "#6E6E73",
 }
 
 /**
@@ -73,7 +73,7 @@ export function BrandMembers({
           <div>
             <CardTitle>Team on this brand</CardTitle>
             <CardDescription>
-              Designers and viewers see this brand only if they're listed below. Strategists, admins, and super admins have access to every brand by default.
+              Designers and clients see this brand only if they're listed below. Strategists, admins, and super admins have access to every brand by default.
             </CardDescription>
           </div>
           <AddMemberDialog
@@ -86,7 +86,7 @@ export function BrandMembers({
       <CardContent className="p-0">
         {members.length === 0 ? (
           <div className="px-5 py-8 text-center text-[13px] text-[#86868B]">
-            No designers or viewers assigned yet. Add one to give them access.
+            No designers or clients assigned yet. Add one to give them access.
           </div>
         ) : (
           <div>
@@ -201,7 +201,7 @@ function MemberRow({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="designer">Designer</SelectItem>
-            <SelectItem value="viewer">Viewer</SelectItem>
+            <SelectItem value="client">Client</SelectItem>
             <SelectItem value="strategist">Strategist</SelectItem>
             <SelectItem value="admin">Admin</SelectItem>
           </SelectContent>
@@ -304,7 +304,7 @@ function AddMemberDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="designer">Designer (can edit briefs)</SelectItem>
-                  <SelectItem value="viewer">Viewer (read-only)</SelectItem>
+                  <SelectItem value="client">Client (read-only)</SelectItem>
                   <SelectItem value="strategist">Strategist (full access)</SelectItem>
                   <SelectItem value="admin">Admin (full access)</SelectItem>
                 </SelectContent>

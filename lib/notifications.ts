@@ -82,7 +82,7 @@ export async function notify(input: NotifyInput): Promise<void> {
  */
 export async function recipientsForBrand({
   brandId,
-  minRole = "viewer",
+  minRole = "client",
   excludeUserId,
 }: {
   brandId: string
@@ -91,7 +91,7 @@ export async function recipientsForBrand({
 }): Promise<string[]> {
   const supabase = createSupabaseServiceClient()
   const RANK: Record<Role, number> = {
-    pending: 0, viewer: 1, designer: 2, strategist: 3, admin: 4, super_admin: 5,
+    pending: 0, client: 1, designer: 2, strategist: 3, admin: 4, super_admin: 5,
   }
   const min = RANK[minRole]
 

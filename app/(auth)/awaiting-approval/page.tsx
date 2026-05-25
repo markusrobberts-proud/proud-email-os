@@ -1,8 +1,16 @@
+import { redirect } from "next/navigation"
 import { requireUser } from "@/lib/auth"
 import { SignOutButton } from "@/components/layout/sign-out-button"
+import { ApprovalPoller } from "./approval-poller"
 
 export default async function AwaitingApprovalPage() {
   const user = await requireUser()
+
+  // Already approved? Skip the holding page entirely. Covers the case
+  // where someone deeplinks here after promotion or refreshes too fast.
+  if (user.role !== "pending") {
+    redirect("/")
+  }
 
   return (
     <main className="min-h-screen flex items-center justify-center px-6">
@@ -18,13 +26,14 @@ export default async function AwaitingApprovalPage() {
         <div className="glass-strong rounded-2xl p-7 text-center">
           <h1 className="text-[20px] font-semibold tracking-display">You're signed in</h1>
           <p className="text-[13px] text-[#6E6E73] mt-3 leading-relaxed">
-            Welcome, {user.displayName ?? user.email}. Your account is awaiting approval from an admin. You'll get access as soon as a role is assigned.
+            Welcome, {user.displayName ?? user.email}. Your account is awaiting approval from an admin. As soon as a role is assigned, this page will move you through automatically.
           </p>
           <div className="mt-7 flex justify-center">
             <SignOutButton />
           </div>
         </div>
       </div>
+      <ApprovalPoller />
     </main>
   )
 }

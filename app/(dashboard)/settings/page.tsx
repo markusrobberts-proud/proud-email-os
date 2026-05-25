@@ -28,7 +28,7 @@ export default async function SettingsPage() {
         <div className="mb-8">
           <ViewAsCard
             currentViewAs={
-              (user.viewingAs as "admin" | "strategist" | "designer" | "viewer" | null) ?? null
+              (user.viewingAs as "admin" | "strategist" | "designer" | "client" | null) ?? null
             }
           />
         </div>

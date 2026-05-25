@@ -10,7 +10,7 @@ type UserRow = {
   id: string
   email: string
   display_name: string | null
-  role: "super_admin" | "admin" | "strategist" | "designer" | "viewer" | "pending"
+  role: "super_admin" | "admin" | "strategist" | "designer" | "client" | "pending"
   created_at: string
 }
 
@@ -19,7 +19,7 @@ const ROLE_COLOURS: Record<string, string> = {
   admin: "#1D1D1F",
   strategist: "#2D4F6B",
   designer: "#8B5A2B",
-  viewer: "#6E6E73",
+  client: "#6E6E73",
   pending: "#B45309",
 }
 

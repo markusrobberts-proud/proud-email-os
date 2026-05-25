@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache"
 import { requireSuperAdmin, VIEW_AS_COOKIE, type Role } from "@/lib/auth"
 import { recordAudit } from "@/lib/audit"
 
-const VALID_VIEW_AS_ROLES: Role[] = ["admin", "strategist", "designer", "viewer"]
+const VALID_VIEW_AS_ROLES: Role[] = ["admin", "strategist", "designer", "client"]
 
 export async function setViewAs(formData: FormData) {
   const user = await requireSuperAdmin()

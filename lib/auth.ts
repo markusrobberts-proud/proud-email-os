@@ -5,7 +5,7 @@ import { redirect } from "next/navigation"
 import { auth, currentUser } from "@clerk/nextjs/server"
 import { createSupabaseServiceClient } from "./supabase/server"
 
-export type Role = "super_admin" | "admin" | "strategist" | "designer" | "viewer" | "pending"
+export type Role = "super_admin" | "admin" | "strategist" | "designer" | "client" | "pending"
 
 export type AppUser = {
   id: string
@@ -22,7 +22,7 @@ export type AppUser = {
 export const VIEW_AS_COOKIE = "proud-email-os.view-as"
 export const USER_CACHE_TAG = "user-profile"
 
-const IMPERSONABLE_ROLES: Role[] = ["admin", "strategist", "designer", "viewer"]
+const IMPERSONABLE_ROLES: Role[] = ["admin", "strategist", "designer", "client"]
 
 type Profile = {
   id: string

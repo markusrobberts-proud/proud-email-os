@@ -17,7 +17,7 @@ export type Brand = {
  * Brands the current user can read.
  *
  * Strategist / admin / super_admin see every active brand (matches the
- * org-wide spec). Designer + viewer are scoped to brands they're members
+ * org-wide spec). Designer + client are scoped to brands they're members
  * of, so the sidebar + brand grid only show what they're meant to work on.
  *
  * Unauthenticated callers and pending users see nothing.
@@ -40,7 +40,7 @@ export const listAccessibleBrands = cache(async (): Promise<Brand[]> => {
     return (data ?? []) as Brand[]
   }
 
-  // Designer / viewer: only brands they're a member of.
+  // Designer / client: only brands they're a member of.
   const { data: memberships } = await supabase
     .from("brand_members")
     .select("brand_id")

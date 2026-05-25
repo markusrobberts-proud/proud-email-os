@@ -11,7 +11,7 @@ import { notify } from "@/lib/notifications"
 // Clerk user IDs look like "user_2xY7..." rather than UUIDs.
 const RoleSchema = z.object({
   userId: z.string().min(1).max(128),
-  role: z.enum(["super_admin", "admin", "strategist", "designer", "viewer", "pending"]),
+  role: z.enum(["super_admin", "admin", "strategist", "designer", "client", "pending"]),
 })
 
 export async function updateUserRole(formData: FormData) {

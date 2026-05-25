@@ -78,7 +78,7 @@ function roleTitle(role: AppUser["role"]): string {
       return "Your strategy pipeline"
     case "designer":
       return "Your design queue"
-    case "viewer":
+    case "client":
       return "What's shipping"
     default:
       return "Welcome"
@@ -94,7 +94,7 @@ function roleSubtitle(role: AppUser["role"]): string {
       return "Plans you're driving, knowledge items to review, and recent client feedback."
     case "designer":
       return "Briefs ready for design, recent Asana exports, and what's coming next."
-    case "viewer":
+    case "client":
       return "Recent campaign progress and client approvals across your brands."
     default:
       return ""

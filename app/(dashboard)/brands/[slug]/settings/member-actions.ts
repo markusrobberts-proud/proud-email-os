@@ -7,7 +7,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { recordAudit } from "@/lib/audit"
 import { notify } from "@/lib/notifications"
 
-const ROLES = ["admin", "strategist", "designer", "viewer"] as const
+const ROLES = ["admin", "strategist", "designer", "client"] as const
 
 const AddSchema = z.object({
   brandId: z.string().uuid(),

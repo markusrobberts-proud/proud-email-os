@@ -4,7 +4,7 @@ import { createSupabaseServerClient } from "./supabase/server"
 
 const ROLE_RANK: Record<Role, number> = {
   pending: 0,
-  viewer: 1,
+  client: 1,
   designer: 2,
   strategist: 3,
   admin: 4,
@@ -19,7 +19,7 @@ export async function requireRole(min: Role): Promise<AppUser> {
 
 /**
  * Strategist+ have org-wide access by design (they shape every brand's
- * strategy). Designer / viewer need a brand_members row to act on a
+ * strategy). Designer / client need a brand_members row to act on a
  * specific brand.
  */
 export async function requireBrandAccess(brandId: string): Promise<AppUser> {
@@ -60,7 +60,7 @@ export function canViewAs(actualRole: Role) {
  * Permission matrix (kept central so UI and server actions stay in lockstep).
  *
  * Knowledge bank:
- *   contribute: add a manual note / upload a file. Designer+ (viewer read-only).
+ *   contribute: add a manual note / upload a file. Designer+ (client read-only).
  *   review:     approve / reject pending items, delete items. Strategist+.
  *
  * Calendar:

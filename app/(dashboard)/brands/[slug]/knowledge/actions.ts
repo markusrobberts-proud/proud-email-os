@@ -27,7 +27,7 @@ const ALLOWED_MIME = new Set([
 const MAX_BYTES = 20 * 1024 * 1024 // 20 MB
 
 export async function uploadKnowledgeFile(formData: FormData) {
-  // Designers can upload reference docs; viewers can't.
+  // Designers can upload reference docs; clients can't.
   const user = await requireRole("designer")
   const parsed = Schema.safeParse({
     brandId: formData.get("brandId"),

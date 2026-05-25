@@ -3,7 +3,7 @@
 import { useTransition } from "react"
 import { updateUserRole } from "./actions"
 
-const ROLES = ["super_admin", "admin", "strategist", "designer", "viewer", "pending"] as const
+const ROLES = ["super_admin", "admin", "strategist", "designer", "client", "pending"] as const
 type Role = (typeof ROLES)[number]
 
 export function RoleSelect({

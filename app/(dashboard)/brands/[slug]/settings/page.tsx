@@ -79,7 +79,7 @@ async function BrandMembersPanel({ brandId, brandSlug }: { brandId: string; bran
 
   type MemberRow = {
     user_id: string
-    role: "admin" | "strategist" | "designer" | "viewer"
+    role: "admin" | "strategist" | "designer" | "client"
     users: { display_name: string | null; email: string } | { display_name: string | null; email: string }[] | null
   }
 
@@ -106,7 +106,7 @@ async function BrandMembersPanel({ brandId, brandSlug }: { brandId: string; bran
     id: string
     display_name: string | null
     email: string
-    role: "super_admin" | "admin" | "strategist" | "designer" | "viewer"
+    role: "super_admin" | "admin" | "strategist" | "designer" | "client"
   }
 
   const candidates: UserRow[] = []
@@ -126,8 +126,8 @@ async function BrandMembersPanel({ brandId, brandSlug }: { brandId: string; bran
       brandId={brandId}
       brandSlug={brandSlug}
       members={members}
-      candidates={candidates.map((c) => ({ id: c.id, display_name: c.display_name, email: c.email, role: c.role as "admin" | "strategist" | "designer" | "viewer" }))}
-      orgWideUsers={orgWide.map((u) => ({ id: u.id, display_name: u.display_name, email: u.email, role: u.role as "admin" | "strategist" | "designer" | "viewer" }))}
+      candidates={candidates.map((c) => ({ id: c.id, display_name: c.display_name, email: c.email, role: c.role as "admin" | "strategist" | "designer" | "client" }))}
+      orgWideUsers={orgWide.map((u) => ({ id: u.id, display_name: u.display_name, email: u.email, role: u.role as "admin" | "strategist" | "designer" | "client" }))}
     />
   )
 }

@@ -16,7 +16,7 @@ const NoteSchema = z.object({
 })
 
 export async function addManualKnowledgeNote(formData: FormData) {
-  // Designers can add notes; viewers can't.
+  // Designers can add notes; clients can't.
   const user = await requireRole("designer")
   const parsed = NoteSchema.safeParse({
     brandId: formData.get("brandId"),

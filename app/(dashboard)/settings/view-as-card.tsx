@@ -7,13 +7,13 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { setViewAs } from "./view-as-actions"
 
-type Role = "admin" | "strategist" | "designer" | "viewer"
+type Role = "admin" | "strategist" | "designer" | "client"
 
 const ROLE_OPTIONS: Array<{ value: Role; label: string; description: string }> = [
   { value: "admin", label: "Admin", description: "Full access, team, audit, system status" },
   { value: "strategist", label: "Strategist", description: "Pipeline, knowledge review, Proud Strategy" },
   { value: "designer", label: "Designer", description: "Brief queue, Asana exports, calendars" },
-  { value: "viewer", label: "Viewer", description: "Read-only, recent client actions" },
+  { value: "client", label: "Client", description: "Read-only, recent client actions" },
 ]
 
 export function ViewAsCard({ currentViewAs }: { currentViewAs: Role | null }) {

@@ -186,30 +186,35 @@ export function tourFor(role: Role): { intro: string; steps: TourStep[] } {
         ],
       }
 
-    case "viewer":
+    case "client":
       return {
-        intro: "Read-only across your assigned brands. Great if you're an account manager keeping a client informed.",
+        intro: "Welcome to PUNCH. You'll see the campaigns Proud is putting together for your brand, and you can approve them right here.",
         steps: [
           {
             icon: "sparkles",
-            title: "Welcome to PUNCH",
-            body: "You see what the team is shipping for the brands you're assigned to.",
-          },
-          {
-            icon: "bell",
-            title: "Bell shows client activity",
-            body: "Approvals, change requests, comments. So you can update the client without bothering the strategist.",
+            title: "This is your brand's workspace",
+            body: "Proud Creative drafts your monthly email campaigns here, with Claude in the loop. You get a clean view of what's coming and approve it without juggling email threads.",
           },
           {
             icon: "calendar",
-            title: "Open any brand from the sidebar",
-            body: "Calendars, plans, briefs are all visible. You won't see edit buttons, but you can read everything.",
+            title: "Find your campaigns in the sidebar",
+            body: "Pick your brand from the switcher, then Calendar. Each row is a month. Click in to see every email, in send order, with subject lines, copy, and design notes.",
             cta: { label: "Open Brands", href: "/brands" },
           },
           {
+            icon: "mail",
+            title: "Approve, request changes, or comment",
+            body: "On any campaign that's ready for you, you'll see approve / request-changes / comment buttons per email. Your reply goes straight to the strategist.",
+          },
+          {
+            icon: "bell",
+            title: "The bell catches you up",
+            body: "We'll ping you here when a new month is ready for review. No more inbox archaeology.",
+          },
+          {
             icon: "filetext",
-            title: "Full reference at /guide",
-            body: "Come back anytime.",
+            title: "Lost? The guide is always here",
+            body: "Hit How to use PUNCH in the sidebar anytime to revisit this.",
             cta: { label: "Open the guide", href: "/guide" },
           },
         ],

@@ -37,7 +37,7 @@ export default async function BrandCalendarPage({ params }: { params: Promise<{ 
   if (!brand) notFound()
   const plans = await listPlansForBrand(brand.id)
   const canPlan = canEditStrategy(user.role)
-  // Designers (and viewers) don't run generations: surface "See brief" /
+  // Designers (and clients) don't run generations: surface "See brief" /
   // "Brief pending" rows instead of strategist status chips.
   const designerView = !canPlan && canEditBrief(user.role)
   const viewerOnly = !canPlan && !designerView
@@ -112,7 +112,7 @@ export default async function BrandCalendarPage({ params }: { params: Promise<{ 
                     {list.map((p, idx) => {
                       const badge = STATUS_BADGE[p.status] ?? { variant: "neutral" as const, label: p.status }
                       const briefReady = BRIEF_READY_STATUSES.has(p.status)
-                      // Designers and viewers click through to the plan only
+                      // Designers and clients click through to the plan only
                       // when the brief is actually ready; otherwise we show a
                       // dim "Brief pending" row so they know it's coming
                       // without dead-ending on a half-built plan.

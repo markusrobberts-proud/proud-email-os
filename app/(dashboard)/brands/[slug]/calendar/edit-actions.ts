@@ -56,7 +56,8 @@ const BriefSchema = z.object({
 })
 
 export async function saveEmailBrief(formData: FormData) {
-  const user = await requireRole("strategist")
+  // Designers own briefs end to end, so they can inline-edit.
+  const user = await requireRole("designer")
   const parsed = BriefSchema.safeParse(Object.fromEntries(formData.entries()))
   if (!parsed.success) throw new Error("Invalid brief input")
 

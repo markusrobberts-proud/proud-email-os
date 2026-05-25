@@ -44,3 +44,35 @@ export function canManageUsers(role: Role) {
 export function canViewAs(actualRole: Role) {
   return actualRole === "super_admin"
 }
+
+/**
+ * Permission matrix (kept central so UI and server actions stay in lockstep).
+ *
+ * Knowledge bank:
+ *   contribute: add a manual note / upload a file. Designer+ (viewer read-only).
+ *   review:     approve / reject pending items, delete items. Strategist+.
+ *
+ * Calendar:
+ *   editBrief:  inline-edit + Asana export. Designer+ (designers own briefs).
+ *   editCopy:   inline-edit subject/headline/body. Strategist+ (writing voice).
+ *   generate:   plan/copy/brief AI generations + approvals. Strategist+.
+ */
+export function canContributeKnowledge(role: Role) {
+  return role === "super_admin" || role === "admin" || role === "strategist" || role === "designer"
+}
+
+export function canReviewKnowledge(role: Role) {
+  return role === "super_admin" || role === "admin" || role === "strategist"
+}
+
+export function canEditBrief(role: Role) {
+  return role === "super_admin" || role === "admin" || role === "strategist" || role === "designer"
+}
+
+export function canEditCopy(role: Role) {
+  return canEditStrategy(role)
+}
+
+export function canRunGenerations(role: Role) {
+  return canEditStrategy(role)
+}

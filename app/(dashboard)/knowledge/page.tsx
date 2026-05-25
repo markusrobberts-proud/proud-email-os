@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { FileText, Mail, Notebook, BookOpen, Sparkles } from "lucide-react"
 import { requireApprovedUser } from "@/lib/auth"
+import { canContributeKnowledge, canReviewKnowledge } from "@/lib/rbac"
 import { listAccessibleBrands } from "@/lib/brands"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -35,7 +36,9 @@ export default async function KnowledgeBankPage({
 }: {
   searchParams: Promise<{ brand?: string; status?: string }>
 }) {
-  await requireApprovedUser()
+  const user = await requireApprovedUser()
+  const canContribute = canContributeKnowledge(user.role)
+  const canReview = canReviewKnowledge(user.role)
   const params = await searchParams
   const brands = await listAccessibleBrands()
   const brandFilter = params.brand
@@ -65,7 +68,7 @@ export default async function KnowledgeBankPage({
         actions={
           <div className="flex items-center gap-2">
             {pendingCount > 0 && <Badge variant="warning">{pendingCount} pending</Badge>}
-            <AddNoteDialog brands={brands.map((b) => ({ id: b.id, name: b.name }))} />
+            {canContribute && <AddNoteDialog brands={brands.map((b) => ({ id: b.id, name: b.name }))} />}
           </div>
         }
       />
@@ -131,7 +134,7 @@ export default async function KnowledgeBankPage({
                     </div>
                   </div>
                   <StatusBadge status={item.review_status} />
-                  <KnowledgeReviewActions id={item.id} status={item.review_status} />
+                  <KnowledgeReviewActions id={item.id} status={item.review_status} canReview={canReview} canDelete={canReview} />
                 </div>
               )
             })}

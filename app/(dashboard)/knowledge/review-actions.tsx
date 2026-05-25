@@ -7,9 +7,13 @@ import { setKnowledgeReviewStatus, deleteKnowledgeItem } from "./actions"
 export function KnowledgeReviewActions({
   id,
   status,
+  canReview = true,
+  canDelete = true,
 }: {
   id: string
   status: "pending_review" | "approved" | "rejected"
+  canReview?: boolean
+  canDelete?: boolean
 }) {
   const [pending, startTransition] = useTransition()
 
@@ -19,9 +23,11 @@ export function KnowledgeReviewActions({
     })
   }
 
+  if (!canReview && !canDelete) return null
+
   return (
     <div className="flex items-center gap-1">
-      {status !== "approved" && (
+      {canReview && status !== "approved" && (
         <Button
           variant="outline"
           size="sm"
@@ -38,7 +44,7 @@ export function KnowledgeReviewActions({
           Approve
         </Button>
       )}
-      {status !== "rejected" && (
+      {canReview && status !== "rejected" && (
         <Button
           variant="ghost"
           size="sm"
@@ -55,20 +61,22 @@ export function KnowledgeReviewActions({
           Reject
         </Button>
       )}
-      <Button
-        variant="ghost"
-        size="sm"
-        disabled={pending}
-        onClick={() =>
-          act(async () => {
-            const fd = new FormData()
-            fd.set("id", id)
-            await deleteKnowledgeItem(fd)
-          })
-        }
-      >
-        Delete
-      </Button>
+      {canDelete && (
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={pending}
+          onClick={() =>
+            act(async () => {
+              const fd = new FormData()
+              fd.set("id", id)
+              await deleteKnowledgeItem(fd)
+            })
+          }
+        >
+          Delete
+        </Button>
+      )}
     </div>
   )
 }

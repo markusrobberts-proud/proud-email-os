@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
-import { requireApprovedUser } from "@/lib/auth"
+import { requireRole } from "@/lib/rbac"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { recordAudit } from "@/lib/audit"
 
@@ -16,7 +16,8 @@ const NoteSchema = z.object({
 })
 
 export async function addManualKnowledgeNote(formData: FormData) {
-  const user = await requireApprovedUser()
+  // Designers can add notes; viewers can't.
+  const user = await requireRole("designer")
   const parsed = NoteSchema.safeParse({
     brandId: formData.get("brandId"),
     title: formData.get("title"),
@@ -58,7 +59,8 @@ const ReviewSchema = z.object({
 })
 
 export async function setKnowledgeReviewStatus(formData: FormData) {
-  const user = await requireApprovedUser()
+  // Approve/reject is a gatekeeping decision: strategist+ only.
+  const user = await requireRole("strategist")
   const parsed = ReviewSchema.safeParse({
     id: formData.get("id"),
     status: formData.get("status"),
@@ -87,7 +89,8 @@ export async function setKnowledgeReviewStatus(formData: FormData) {
 const DeleteSchema = z.object({ id: z.string().uuid() })
 
 export async function deleteKnowledgeItem(formData: FormData) {
-  const user = await requireApprovedUser()
+  // Destructive: strategist+ only.
+  const user = await requireRole("strategist")
   const parsed = DeleteSchema.safeParse({ id: formData.get("id") })
   if (!parsed.success) return
 

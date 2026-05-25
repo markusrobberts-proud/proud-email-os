@@ -18,15 +18,21 @@ type Mode = "view" | "edit-copy" | "edit-brief"
 
 export function EmailRow({
   email,
-  canEdit,
+  canEditCopy,
+  canEditBrief,
+  canGenerate,
   copyUnlocked,
   clientAction,
 }: {
   email: CampaignEmail
-  canEdit: boolean
+  canEditCopy: boolean
+  canEditBrief: boolean
+  canGenerate: boolean
   copyUnlocked: boolean
   clientAction: { action: string; comment: string | null; acted_at: string } | null
 }) {
+  // Asana export is part of the designer hand-off, so it follows the brief role.
+  const canExportAsana = canEditBrief
   const [expanded, setExpanded] = useState(false)
   const [mode, setMode] = useState<Mode>("view")
   const [feedback, setFeedback] = useState("")
@@ -99,7 +105,7 @@ export function EmailRow({
             <div className="pt-2">
               <div className="flex items-center justify-between mb-2">
                 <SectionTitle>Copy</SectionTitle>
-                {canEdit && copyDone && mode !== "edit-copy" && (
+                {canEditCopy && copyDone && mode !== "edit-copy" && (
                   <Button variant="ghost" size="sm" onClick={() => setMode("edit-copy")}>
                     <Pencil /> Edit
                   </Button>
@@ -144,7 +150,7 @@ export function EmailRow({
               <div className="pt-2 border-t border-[#E5E5EA]">
                 <div className="flex items-center justify-between mb-2">
                   <SectionTitle>Brief</SectionTitle>
-                  {canEdit && briefDone && mode !== "edit-brief" && (
+                  {canEditBrief && briefDone && mode !== "edit-brief" && (
                     <Button variant="ghost" size="sm" onClick={() => setMode("edit-brief")}>
                       <Pencil /> Edit
                     </Button>
@@ -204,26 +210,30 @@ export function EmailRow({
             )}
 
             {/* ACTIONS */}
-            {canEdit && mode === "view" && (
+            {(canGenerate || canExportAsana) && mode === "view" && (
               <div className="pt-3 border-t border-[#E5E5EA] space-y-2">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <Button
-                    size="sm"
-                    variant={copyDone ? "secondary" : "accent"}
-                    disabled={!copyUnlocked || pending}
-                    onClick={() => act(() => generateCopyForEmail(email.id, feedback || undefined))}
-                  >
-                    <Sparkles /> {copyDone ? "Regenerate copy" : "Generate copy"}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={briefDone ? "secondary" : "accent"}
-                    disabled={!briefUnlocked || pending}
-                    onClick={() => act(() => generateBriefForEmail(email.id))}
-                  >
-                    <Sparkles /> {briefDone ? "Regenerate brief" : "Generate brief"}
-                  </Button>
-                  {briefDone && (
+                  {canGenerate && (
+                    <Button
+                      size="sm"
+                      variant={copyDone ? "secondary" : "accent"}
+                      disabled={!copyUnlocked || pending}
+                      onClick={() => act(() => generateCopyForEmail(email.id, feedback || undefined))}
+                    >
+                      <Sparkles /> {copyDone ? "Regenerate copy" : "Generate copy"}
+                    </Button>
+                  )}
+                  {canGenerate && (
+                    <Button
+                      size="sm"
+                      variant={briefDone ? "secondary" : "accent"}
+                      disabled={!briefUnlocked || pending}
+                      onClick={() => act(() => generateBriefForEmail(email.id))}
+                    >
+                      <Sparkles /> {briefDone ? "Regenerate brief" : "Generate brief"}
+                    </Button>
+                  )}
+                  {canExportAsana && briefDone && (
                     <Button
                       size="sm"
                       variant="secondary"
@@ -234,7 +244,7 @@ export function EmailRow({
                     </Button>
                   )}
                 </div>
-                {copyDone && (
+                {canGenerate && copyDone && (
                   <Textarea
                     placeholder="Feedback for the next copy regeneration (optional)..."
                     rows={2}
@@ -242,7 +252,7 @@ export function EmailRow({
                     onChange={(e) => setFeedback(e.target.value)}
                   />
                 )}
-                {!copyUnlocked && (
+                {canGenerate && !copyUnlocked && (
                   <p className="text-[11.5px] text-[#86868B] italic">
                     Approve the calendar above to unlock copy generation.
                   </p>

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
-import { requireApprovedUser } from "@/lib/auth"
+import { requireRole } from "@/lib/rbac"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { recordAudit } from "@/lib/audit"
 
@@ -27,7 +27,8 @@ const ALLOWED_MIME = new Set([
 const MAX_BYTES = 20 * 1024 * 1024 // 20 MB
 
 export async function uploadKnowledgeFile(formData: FormData) {
-  const user = await requireApprovedUser()
+  // Designers can upload reference docs; viewers can't.
+  const user = await requireRole("designer")
   const parsed = Schema.safeParse({
     brandId: formData.get("brandId"),
     brandSlug: formData.get("brandSlug"),

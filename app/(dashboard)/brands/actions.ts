@@ -94,9 +94,12 @@ export async function createBrandAction(
     return { ok: false, error: msg }
   }
 
+  // brand_members.role is the per-brand membership level. Clamp super_admin
+  // to "admin" so we never store an org-only role on a per-brand row.
+  const membershipRole = user.actualRole === "super_admin" ? "admin" : user.actualRole
   await supabase
     .from("brand_members")
-    .insert({ brand_id: data.id, user_id: user.id, role: user.role })
+    .insert({ brand_id: data.id, user_id: user.id, role: membershipRole })
 
   // If the user already ran "Auto-fill from website" on the form, store the
   // extracted profile as a knowledge item right now so it's instantly

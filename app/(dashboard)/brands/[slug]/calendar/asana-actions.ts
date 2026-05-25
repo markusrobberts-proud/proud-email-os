@@ -7,7 +7,8 @@ import { recordAudit } from "@/lib/audit"
 import { createAsanaTask } from "@/lib/asana"
 
 export async function exportEmailToAsana(emailId: string) {
-  const user = await requireRole("strategist")
+  // Designer-and-up: shipping a brief to Asana is the designer's hand-off.
+  const user = await requireRole("designer")
   const workspaceId = process.env.ASANA_WORKSPACE_ID
   if (!workspaceId) throw new Error("ASANA_WORKSPACE_ID is not set")
 

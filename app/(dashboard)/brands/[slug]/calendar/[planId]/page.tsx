@@ -2,7 +2,7 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import { ArrowLeft, Sparkles } from "lucide-react"
 import { requireApprovedUser } from "@/lib/auth"
-import { canEditStrategy } from "@/lib/rbac"
+import { canEditCopy, canEditBrief, canRunGenerations } from "@/lib/rbac"
 import { getBrandBySlug } from "@/lib/brands"
 import { getPlanWithEmails } from "@/lib/campaigns"
 import { MONTHS } from "@/lib/months"
@@ -33,7 +33,9 @@ export default async function PlanDetailPage({
   const { plan, emails } = await getPlanWithEmails(planId)
   if (!plan) notFound()
 
-  const canEdit = canEditStrategy(user.role)
+  const canCopy = canEditCopy(user.role)
+  const canBrief = canEditBrief(user.role)
+  const canGenerate = canRunGenerations(user.role)
   const copyUnlocked = plan.status !== "draft" && plan.status !== "generating" && plan.status !== "pending_review"
 
   // Pull approval link IDs + latest action per email for this plan.
@@ -83,7 +85,7 @@ export default async function PlanDetailPage({
           </h1>
           <p className="text-[15px] text-[#6E6E73] mt-2">{plan.name}</p>
         </div>
-        <PlanControls plan={plan} canEdit={canEdit} />
+        <PlanControls plan={plan} canEdit={canGenerate} />
       </div>
 
       {linkIds.length > 0 && (
@@ -150,7 +152,7 @@ export default async function PlanDetailPage({
           <CardHeader>
             <CardTitle>No emails generated yet</CardTitle>
             <CardDescription>
-              {canEdit ? "Click \"Generate calendar\" above to draft the month." : "A strategist or admin needs to kick off the generation."}
+              {canGenerate ? "Click \"Generate calendar\" above to draft the month." : "A strategist or admin needs to kick off the generation."}
             </CardDescription>
           </CardHeader>
         </Card>
@@ -162,7 +164,9 @@ export default async function PlanDetailPage({
               <EmailRow
                 key={e.id}
                 email={e}
-                canEdit={canEdit}
+                canEditCopy={canCopy}
+                canEditBrief={canBrief}
+                canGenerate={canGenerate}
                 copyUnlocked={copyUnlocked}
                 clientAction={latest ? { action: latest.action, comment: latest.comment, acted_at: latest.acted_at } : null}
               />

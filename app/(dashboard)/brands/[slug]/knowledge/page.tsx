@@ -10,6 +10,7 @@ import {
   Trash2,
 } from "lucide-react"
 import { requireApprovedUser } from "@/lib/auth"
+import { canContributeKnowledge, canReviewKnowledge } from "@/lib/rbac"
 import { getBrandBySlug } from "@/lib/brands"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -59,7 +60,9 @@ export default async function BrandKnowledgePage({
   params: Promise<{ slug: string }>
   searchParams: Promise<{ status?: string; tab?: string }>
 }) {
-  await requireApprovedUser()
+  const user = await requireApprovedUser()
+  const canContribute = canContributeKnowledge(user.role)
+  const canReview = canReviewKnowledge(user.role)
   const { slug } = await params
   const { status: statusFilter = "all", tab = "documents" } = await searchParams
   const brand = await getBrandBySlug(slug)
@@ -91,8 +94,8 @@ export default async function BrandKnowledgePage({
         description="Upload documents directly, or forward relevant emails to this brand's private address and they'll be added automatically."
         actions={
           <div className="flex items-center gap-2">
-            <UploadFileDialog brandId={brand.id} brandSlug={brand.slug} />
-            <AddNoteDialog brands={[{ id: brand.id, name: brand.name }]} />
+            {canContribute && <UploadFileDialog brandId={brand.id} brandSlug={brand.slug} />}
+            {canContribute && <AddNoteDialog brands={[{ id: brand.id, name: brand.name }]} />}
           </div>
         }
       />
@@ -183,7 +186,7 @@ export default async function BrandKnowledgePage({
                     </div>
                   </div>
                   <StatusBadge status={item.review_status} />
-                  <KnowledgeReviewActions id={item.id} status={item.review_status} />
+                  <KnowledgeReviewActions id={item.id} status={item.review_status} canReview={canReview} canDelete={canReview} />
                 </div>
               )
             })}

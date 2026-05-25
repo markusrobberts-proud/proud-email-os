@@ -1,28 +1,57 @@
 "use client"
 
-import { useTransition } from "react"
-import { Sparkles, Check } from "lucide-react"
+import { useState, useTransition } from "react"
+import { useRouter } from "next/navigation"
+import { Sparkles, Check, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   generateCalendar,
   approveCalendar,
   generateAllCopy,
   generateAllBriefs,
+  deletePlan,
 } from "../actions"
 import type { CampaignPlan } from "@/lib/campaigns"
 import { ShareButton } from "./share-button"
 
-export function PlanControls({ plan, canEdit }: { plan: CampaignPlan; canEdit: boolean }) {
-  const [pending, startTransition] = useTransition()
+type PlanControlsProps = {
+  plan: CampaignPlan
+  brandSlug: string
+  canEdit: boolean
+  canDelete: boolean
+}
 
-  function act(fn: () => Promise<void>) {
+export function PlanControls({ plan, brandSlug, canEdit, canDelete }: PlanControlsProps) {
+  const router = useRouter()
+  const [pending, startTransition] = useTransition()
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState("")
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  function act(fn: () => Promise<unknown>) {
     startTransition(async () => {
       try {
-        await fn()
+        const result = await fn()
+        // Honour { ok: false, error } from server actions that opted into the
+        // result-shape pattern (generateCalendar, deletePlan).
+        if (result && typeof result === "object" && "ok" in result && (result as { ok: boolean }).ok === false) {
+          const err = (result as { error?: string }).error ?? "Action failed"
+          alert(err)
+        }
       } catch (err) {
         console.error(err)
-        alert((err as Error).message)
+        alert((err as Error).message || "Action failed")
       }
     })
   }
@@ -67,6 +96,71 @@ export function PlanControls({ plan, canEdit }: { plan: CampaignPlan; canEdit: b
             </Button>
           )}
           {shareable && <ShareButton planId={plan.id} />}
+        </>
+      )}
+      {canDelete && (
+        <>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              setDeleteConfirm("")
+              setDeleteError(null)
+              setDeleteOpen(true)
+            }}
+          >
+            <Trash2 /> Delete
+          </Button>
+          <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Delete this campaign?</DialogTitle>
+                <DialogDescription>
+                  Removes the plan, all of its emails, briefs, and approval activity. This can't be undone.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-2">
+                <Label htmlFor="confirm-name">Type the campaign name to confirm</Label>
+                <Input
+                  id="confirm-name"
+                  value={deleteConfirm}
+                  onChange={(e) => setDeleteConfirm(e.target.value)}
+                  placeholder={plan.name}
+                  autoComplete="off"
+                />
+                <p className="text-[12px] text-[#86868B]">{plan.name}</p>
+                {deleteError && <p className="text-[12px] text-[#D70015]">{deleteError}</p>}
+              </div>
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => setDeleteOpen(false)} disabled={pending}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  disabled={pending || deleteConfirm.trim().length === 0}
+                  onClick={() =>
+                    startTransition(async () => {
+                      setDeleteError(null)
+                      const fd = new FormData()
+                      fd.set("planId", plan.id)
+                      fd.set("brandSlug", brandSlug)
+                      fd.set("confirm", deleteConfirm)
+                      const res = await deletePlan(fd)
+                      if (res.ok) {
+                        setDeleteOpen(false)
+                        router.push(`/brands/${brandSlug}/calendar`)
+                        router.refresh()
+                      } else {
+                        setDeleteError(res.error)
+                      }
+                    })
+                  }
+                >
+                  {pending ? "Deleting..." : "Delete campaign"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </>
       )}
     </div>

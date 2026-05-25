@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { PageHeader, PageShell } from "@/components/layout/page-header"
+import { PlanRowDelete } from "./plan-row-delete"
 
 const STATUS_BADGE: Record<string, { variant: "neutral" | "success" | "warning" | "destructive"; label: string }> = {
   draft: { variant: "neutral", label: "Draft" },
@@ -121,7 +122,10 @@ export default async function BrandCalendarPage({ params }: { params: Promise<{ 
                       } ${blockClick ? "opacity-60 cursor-not-allowed" : "hover:bg-white/60"}`
 
                       const right = canPlan ? (
-                        <Badge variant={badge.variant}>{badge.label}</Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={badge.variant}>{badge.label}</Badge>
+                          <PlanRowDelete planId={p.id} brandSlug={brand.slug} campaignName={p.name} />
+                        </div>
                       ) : briefReady ? (
                         <span className="inline-flex items-center gap-1.5 text-[12px] text-[#007AFF] font-medium">
                           <FileText className="size-3.5" /> See brief

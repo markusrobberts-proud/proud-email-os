@@ -3,6 +3,7 @@ import { notFound } from "next/navigation"
 import { ArrowLeft, Sparkles } from "lucide-react"
 import { requireApprovedUser } from "@/lib/auth"
 import { canEditCopy, canEditBrief, canRunGenerations } from "@/lib/rbac"
+// Strategist+ can delete plans (matches canRunGenerations).
 import { getBrandBySlug } from "@/lib/brands"
 import { getPlanWithEmails } from "@/lib/campaigns"
 import { MONTHS } from "@/lib/months"
@@ -85,7 +86,7 @@ export default async function PlanDetailPage({
           </h1>
           <p className="text-[15px] text-[#6E6E73] mt-2">{plan.name}</p>
         </div>
-        <PlanControls plan={plan} canEdit={canGenerate} />
+        <PlanControls plan={plan} brandSlug={brand.slug} canEdit={canGenerate} canDelete={canGenerate} />
       </div>
 
       {linkIds.length > 0 && (

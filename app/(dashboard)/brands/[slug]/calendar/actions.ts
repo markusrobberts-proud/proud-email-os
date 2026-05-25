@@ -52,24 +52,39 @@ export async function createPlan(
   const fallbackName = `${MONTHS[parsed.data.month - 1]} ${parsed.data.year} Campaign`
   const name = parsed.data.name?.trim() || fallbackName
 
+  // Build the row defensively: if the 0005_plan_cadence.sql migration hasn't
+  // been applied yet, the emails_per_week / total_emails columns won't exist
+  // and Postgres will reject the insert. We retry without those keys when we
+  // see the missing-column signal so the new-plan form still works mid-migration.
   const supabase = await createSupabaseServerClient()
-  const { data, error } = await supabase
+  const base = {
+    brand_id: parsed.data.brandId,
+    name,
+    month: parsed.data.month,
+    year: parsed.data.year,
+    team_brief: parsed.data.teamBrief || null,
+    target_designed_count: parsed.data.targetDesigned ?? null,
+    target_text_count: parsed.data.targetText ?? null,
+    target_sms_count: parsed.data.targetSms ?? null,
+    status: "draft" as const,
+  }
+  const withCadence = {
+    ...base,
+    emails_per_week: parsed.data.emailsPerWeek ?? null,
+    total_emails: parsed.data.totalEmails ?? null,
+  }
+
+  let { data, error } = await supabase
     .from("campaign_plans")
-    .insert({
-      brand_id: parsed.data.brandId,
-      name,
-      month: parsed.data.month,
-      year: parsed.data.year,
-      team_brief: parsed.data.teamBrief || null,
-      target_designed_count: parsed.data.targetDesigned ?? null,
-      target_text_count: parsed.data.targetText ?? null,
-      target_sms_count: parsed.data.targetSms ?? null,
-      emails_per_week: parsed.data.emailsPerWeek ?? null,
-      total_emails: parsed.data.totalEmails ?? null,
-      status: "draft",
-    })
+    .insert(withCadence)
     .select("id")
     .single()
+
+  if (error && /emails_per_week|total_emails|column .* does not exist/i.test(error.message)) {
+    const retry = await supabase.from("campaign_plans").insert(base).select("id").single()
+    data = retry.data
+    error = retry.error
+  }
 
   if (error || !data) {
     const msg = error?.message ?? "Could not create plan"
@@ -96,41 +111,74 @@ export async function createPlan(
   redirect(`/brands/${parsed.data.brandSlug}/calendar/${data.id}`)
 }
 
-export async function generateCalendar(planId: string) {
-  const user = await requireRole("strategist")
-  const supabase = await createSupabaseServerClient()
+export type GenerateResult = { ok: true } | { ok: false; error: string }
 
-  await supabase.from("campaign_plans").update({ status: "generating" }).eq("id", planId)
-
-  const { data: plan } = await supabase
-    .from("campaign_plans")
-    .select("brand_id, name, month, year, team_brief, target_designed_count, target_text_count, target_sms_count, emails_per_week, total_emails")
-    .eq("id", planId)
-    .single()
-  if (!plan) throw new Error("Plan not found")
-
-  let generated
+export async function generateCalendar(planId: string): Promise<GenerateResult> {
   try {
-    generated = await generateCalendarPlan({
-      brandId: plan.brand_id,
-      campaignName: plan.name,
-      month: plan.month,
-      year: plan.year,
-      teamBrief: plan.team_brief,
-      targets: {
-        designed: plan.target_designed_count,
-        text: plan.target_text_count,
-        sms: plan.target_sms_count,
-      },
-      cadence: {
-        emailsPerWeek: plan.emails_per_week,
-        totalEmails: plan.total_emails,
-      },
-    })
+    const user = await requireRole("strategist")
+    const supabase = await createSupabaseServerClient()
+
+    await supabase.from("campaign_plans").update({ status: "generating" }).eq("id", planId)
+
+    // select * so we degrade cleanly if the 0005_plan_cadence.sql migration
+    // hasn't been applied yet in this environment. emails_per_week and
+    // total_emails are read defensively below.
+    const { data: plan } = await supabase
+      .from("campaign_plans")
+      .select("*")
+      .eq("id", planId)
+      .single()
+    if (!plan) return { ok: false, error: "Plan not found" }
+
+    if (!process.env.AI_GATEWAY_API_KEY && !process.env.ANTHROPIC_API_KEY) {
+      await supabase.from("campaign_plans").update({ status: "error" }).eq("id", planId)
+      return {
+        ok: false,
+        error: "AI key isn't configured. Set ANTHROPIC_API_KEY (or wire the Vercel AI Gateway) and redeploy.",
+      }
+    }
+
+    let generated
+    try {
+      generated = await generateCalendarPlan({
+        brandId: plan.brand_id as string,
+        campaignName: (plan.name as string | null) ?? null,
+        month: plan.month as number,
+        year: plan.year as number,
+        teamBrief: (plan.team_brief as string | null) ?? null,
+        targets: {
+          designed: (plan.target_designed_count as number | null) ?? null,
+          text: (plan.target_text_count as number | null) ?? null,
+          sms: (plan.target_sms_count as number | null) ?? null,
+        },
+        cadence: {
+          emailsPerWeek: (plan.emails_per_week as number | null | undefined) ?? null,
+          totalEmails: (plan.total_emails as number | null | undefined) ?? null,
+        },
+      })
+    } catch (err) {
+      await supabase.from("campaign_plans").update({ status: "error" }).eq("id", planId)
+      console.error("[generateCalendar] AI call failed:", err)
+      return { ok: false, error: `Claude couldn't generate the calendar: ${(err as Error).message}` }
+    }
+    // Continues with the original body below once we have `generated`.
+    // The rest of the function expects: supabase, user, plan, generated.
+    return await persistGeneratedCalendar({ supabase, user, plan, planId, generated })
   } catch (err) {
-    await supabase.from("campaign_plans").update({ status: "error" }).eq("id", planId)
-    throw err
+    console.error("[generateCalendar] unexpected:", err)
+    return { ok: false, error: (err as Error).message ?? "Generate failed" }
   }
+}
+
+type PersistArgs = {
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>
+  user: { id: string }
+  plan: { brand_id: string }
+  planId: string
+  generated: Awaited<ReturnType<typeof generateCalendarPlan>>
+}
+
+async function persistGeneratedCalendar({ supabase, user, plan, planId, generated }: PersistArgs): Promise<GenerateResult> {
 
   // Insert series first so we can map them onto email rows
   const seriesIdBySeqStart = new Map<number, string>()
@@ -177,6 +225,7 @@ export async function generateCalendar(planId: string) {
   })
 
   revalidatePath(`/brands`)
+  return { ok: true }
 }
 
 export async function approveCalendar(planId: string) {
@@ -370,4 +419,53 @@ export async function generateAllBriefs(planId: string) {
   for (const row of emails ?? []) await generateBriefForEmail(row.id)
   await supabase.from("campaign_plans").update({ status: "briefs_done" }).eq("id", planId)
   revalidatePath(`/brands`)
+}
+
+const DeletePlanSchema = z.object({
+  planId: z.string().uuid(),
+  brandSlug: z.string().min(1),
+  confirm: z.string().optional(),
+})
+
+export type DeletePlanResult = { ok: true } | { ok: false; error: string }
+
+/**
+ * Permanently deletes a plan plus its emails and series (FK cascades take
+ * care of the children). Strategist+ only, audit-logged. Used from the
+ * calendar list and from the plan detail header.
+ */
+export async function deletePlan(formData: FormData): Promise<DeletePlanResult> {
+  const user = await requireRole("strategist")
+  const parsed = DeletePlanSchema.safeParse(Object.fromEntries(formData.entries()))
+  if (!parsed.success) return { ok: false, error: "Invalid input" }
+
+  const supabase = await createSupabaseServerClient()
+  const { data: plan } = await supabase
+    .from("campaign_plans")
+    .select("id, name, brand_id")
+    .eq("id", parsed.data.planId)
+    .single()
+  if (!plan) return { ok: false, error: "Plan not found" }
+
+  // Optional confirm-by-name. The plan-detail page asks for the campaign
+  // name; the list-page quick delete skips this and trusts the modal.
+  if (parsed.data.confirm && parsed.data.confirm.trim().toLowerCase() !== (plan.name as string).toLowerCase()) {
+    return { ok: false, error: "Confirmation text didn't match the campaign name." }
+  }
+
+  const { error } = await supabase.from("campaign_plans").delete().eq("id", parsed.data.planId)
+  if (error) return { ok: false, error: error.message }
+
+  await recordAudit({
+    userId: user.id,
+    brandId: plan.brand_id as string,
+    entityType: "campaign_plan",
+    entityId: parsed.data.planId,
+    action: "delete",
+    meta: { name: plan.name },
+  })
+
+  revalidatePath(`/brands/${parsed.data.brandSlug}/calendar`)
+  revalidatePath(`/brands/${parsed.data.brandSlug}`)
+  return { ok: true }
 }

@@ -21,6 +21,7 @@ import { canEditStrategy, canManageUsers } from "@/lib/rbac"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { BrandIcon } from "@/components/ui/brand-icon"
 import { PageShell } from "@/components/layout/page-header"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 
@@ -469,17 +470,12 @@ function ViewerDashboard({
                 <Link key={b.id} href={`/brands/${b.slug}`} className="block">
                   <Card hoverable>
                     <CardContent className="p-4 flex items-center gap-3">
-                      <div
-                        className="w-8 h-8 rounded-md flex items-center justify-center text-[10px] font-semibold text-white shrink-0"
-                        style={{ background: b.primary_color || "#1D1D1F" }}
-                      >
-                        {b.name
-                          .split(/\s+/)
-                          .slice(0, 2)
-                          .map((w) => w[0])
-                          .join("")
-                          .toUpperCase()}
-                      </div>
+                      <BrandIcon
+                        name={b.name}
+                        websiteUrl={b.website_url}
+                        primaryColor={b.primary_color}
+                        size="md"
+                      />
                       <div className="min-w-0">
                         <div className="text-[13px] font-medium truncate">{b.name}</div>
                         <div className="text-[11.5px] text-[#86868B] truncate">{b.industry ?? "–"}</div>

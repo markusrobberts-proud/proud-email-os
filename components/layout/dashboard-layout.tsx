@@ -9,6 +9,7 @@ type Brand = {
   slug: string
   name: string
   primary_color: string | null
+  website_url: string | null
 }
 
 export function DashboardLayout({

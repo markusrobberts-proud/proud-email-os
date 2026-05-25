@@ -18,14 +18,14 @@ import {
   Plus,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-
-const BRAND_DEFAULT_ACCENT = "#1D1D1F"
+import { BrandIcon } from "@/components/ui/brand-icon"
 
 type Brand = {
   id: string
   slug: string
   name: string
   primary_color: string | null
+  website_url: string | null
 }
 
 export function Sidebar({
@@ -100,7 +100,12 @@ export function Sidebar({
             className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-md hover:bg-white/60 transition"
           >
             <div className="flex items-center gap-2 min-w-0">
-              <BrandChip color={activeBrand?.primary_color ?? BRAND_DEFAULT_ACCENT} name={activeBrand?.name ?? "All brands"} />
+              <BrandIcon
+                name={activeBrand?.name ?? "All brands"}
+                websiteUrl={activeBrand?.website_url ?? null}
+                primaryColor={activeBrand?.primary_color ?? null}
+                size="sm"
+              />
               <span className="text-[13px] font-medium truncate">{activeBrand?.name ?? "Choose a brand"}</span>
             </div>
             <ChevronDown className={cn("size-3.5 text-[#86868B] transition", switcherOpen && "rotate-180")} />
@@ -120,7 +125,12 @@ export function Sidebar({
                     b.slug === activeBrand?.slug && "bg-[#F5F5F7]",
                   )}
                 >
-                  <BrandChip color={b.primary_color ?? BRAND_DEFAULT_ACCENT} name={b.name} />
+                  <BrandIcon
+                    name={b.name}
+                    websiteUrl={b.website_url}
+                    primaryColor={b.primary_color}
+                    size="sm"
+                  />
                   <span className="truncate">{b.name}</span>
                   {b.slug === activeBrand?.slug && <Check className="size-3 ml-auto text-[#007AFF]" />}
                 </button>
@@ -230,19 +240,3 @@ function NavLink({
   )
 }
 
-function BrandChip({ color, name }: { color: string; name: string }) {
-  const initials = name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase()
-  return (
-    <div
-      className="w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-semibold text-white shrink-0"
-      style={{ background: color }}
-    >
-      {initials}
-    </div>
-  )
-}

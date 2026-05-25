@@ -7,6 +7,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { BrandIcon } from "@/components/ui/brand-icon"
 import { PageHeader, PageShell } from "@/components/layout/page-header"
 
 export default async function BrandsIndexPage() {
@@ -77,7 +78,12 @@ export default async function BrandsIndexPage() {
                         <CardTitle>{brand.name}</CardTitle>
                         <CardDescription>{brand.industry ?? "–"}</CardDescription>
                       </div>
-                      <BrandSquare color={brand.primary_color} name={brand.name} />
+                      <BrandIcon
+                        name={brand.name}
+                        websiteUrl={brand.website_url}
+                        primaryColor={brand.primary_color}
+                        size="md"
+                      />
                     </div>
                   </CardHeader>
                   <CardContent>
@@ -137,19 +143,3 @@ export default async function BrandsIndexPage() {
   )
 }
 
-function BrandSquare({ color, name }: { color: string | null; name: string }) {
-  const initials = name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase()
-  return (
-    <div
-      className="w-9 h-9 rounded-lg flex items-center justify-center text-[11px] font-semibold text-white shrink-0"
-      style={{ background: color || "#1D1D1F" }}
-    >
-      {initials}
-    </div>
-  )
-}

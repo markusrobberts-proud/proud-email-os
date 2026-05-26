@@ -130,7 +130,7 @@ export function Sidebar({
     exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`)
 
   return (
-    <aside className="w-[236px] glass-sidebar border-r border-[#E5E5EA] flex flex-col shrink-0">
+    <aside className="w-[236px] h-full md:h-auto glass-sidebar border-r border-[#E5E5EA] flex flex-col shrink-0">
       <div className="px-4 pt-5 pb-4 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2 group">
           <div className="w-6 h-6 rounded-md bg-[#1D1D1F] flex items-center justify-center group-hover:bg-black transition">
